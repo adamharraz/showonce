@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: showonce
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: STORAGE_MODE
+        value: supabase
+      - key: ALLOW_LOCAL_LOGIN
+        value: "false"
+      - key: FREE_TIER_CONFIRMED
+        value: "false"
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: APP_ORIGIN
+        sync: false
