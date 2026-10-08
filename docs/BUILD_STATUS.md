@@ -17,7 +17,8 @@ Date: 8 October 2026. This is an implementation record, not a competition valida
 | ESP32/Sheets extraction and checkpoint evaluation | Tools/protocol provided; not run |
 | Adult beginner pilot, TRL4, submission video | Not performed |
 | ESP32 blink firmware | Prepared; not compiled/flashed on hardware |
-| Python 3.12 Docker/CI | Prepared; local Docker engine unavailable, remote CI not run |
+| Python 3.12 GitHub CI | Backend/frontend tests and production build passed on the initial GitHub commit |
+| Docker deployment image | Prepared; deployment integration still needs verification |
 
 No Gemini or Supabase secret credentials were present. The implementation therefore makes no live-model, hosting, 90% accuracy, 15s latency or TRL4 claim. No software/service money was spent.
 

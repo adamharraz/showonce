@@ -25,6 +25,8 @@ powershell -ExecutionPolicy Bypass -File scripts/start.ps1
 
 Open <http://localhost:8000>. Local instructor/student sign-in is enabled only on the developer computer. Local lessons and screenshots persist in `.data`; this is the durable local backup. Do not use local sign-in on a hosted deployment.
 
+After installing and building, double-click `Start ShowOnce.cmd` to launch the local app in the background and open your browser. `Stop ShowOnce.cmd` stops that launcher-managed server and preserves saved lessons. The launcher uses port 8000, detects an existing managed instance, and keeps logs under `.data/logs`. It refuses to replace another application using that port.
+
 For frontend development, run the backend and `npm run dev --prefix frontend` in separate terminals. Vite proxies `/api`, including WebSockets, to port 8000. The production build is served by FastAPI on one origin.
 
 Dependencies are already installed in this workspace. Its host Python is 3.13; automated checks have run on that host. The Python 3.12 Docker image still needs a build and integration check on the deployment host.
