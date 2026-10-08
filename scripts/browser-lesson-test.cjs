@@ -23,21 +23,42 @@ let browser;
   });
   const page = await context.newPage();
   const errors = [];
+  const layoutChecks = [];
+  async function inspectLayout(name) {
+    for (const width of [1440, 768, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.waitForTimeout(250);
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth > innerWidth,
+      );
+      layoutChecks.push({ name, width, overflow });
+      if (overflow) throw new Error(name + " overflows at " + width);
+      await page.screenshot({
+        path: "artifacts/ui/redesign-" + name + "-" + width + ".png",
+        fullPage: true,
+      });
+    }
+    await page.setViewportSize({ width: 1440, height: 1000 });
+  }
   page.on("pageerror", (e) => errors.push(e.message));
   const response = await page.goto("http://127.0.0.1:8001");
   if (response.headers()["x-showonce-test-fixture"] !== "true")
     throw new Error("Refusing to test against an unmarked model server");
+  await inspectLayout("login");
   await page.getByRole("button", { name: /instructor/i }).click();
+  await inspectLayout("library-empty");
   await page
     .getByRole("button", { name: "Demonstration studio", exact: true })
     .click();
+  await inspectLayout("capture-setup");
   await page.getByRole("checkbox", { name: /18\+/ }).check();
   await page
     .getByRole("button", { name: "Start demonstration", exact: true })
     .click();
   await page.waitForTimeout(2500);
   await page.getByRole("button", { name: /Finish & review/i }).click();
-  await page.getByRole("heading", { name: "Make the lesson yours." }).waitFor();
+  await page.getByRole("heading", { name: "Review lesson" }).waitFor();
+  await inspectLayout("review");
   if (
     await page
       .getByRole("button", { name: "Publish lesson", exact: true })
@@ -60,6 +81,7 @@ let browser;
   await page
     .getByRole("heading", { name: "Test-generated lesson", exact: true })
     .waitFor();
+  await inspectLayout("lesson");
   const downloadPromise = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "Export lesson", exact: true })
@@ -74,6 +96,7 @@ let browser;
     .getByRole("button", { name: "Start practice", exact: true })
     .click();
   await page.waitForTimeout(2500);
+  await inspectLayout("practice");
   await page
     .getByRole("button", { name: "Finish practice", exact: true })
     .click();
@@ -82,11 +105,25 @@ let browser;
     path: "artifacts/ui/practice-test-fixture.png",
     fullPage: true,
   });
+  await page
+    .getByRole("button", { name: "Lesson library", exact: true })
+    .click();
+  await page.locator(".lesson-card").first().waitFor();
+  await inspectLayout("library");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page
+    .getByRole("button", { name: "Open navigation", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Connection & validation", exact: true })
+    .click();
+  await inspectLayout("settings");
   fs.writeFileSync(
     "artifacts/ui/lesson-flow-test.json",
     JSON.stringify(
       {
         pageErrors: errors,
+        layoutChecks,
         note: "Test-only model fixture and synthetic camera. Verifies UI integration, not model accuracy or latency.",
       },
       null,

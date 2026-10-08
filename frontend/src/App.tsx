@@ -23,7 +23,6 @@ import {
   Pause,
   Play,
   Plus,
-  Radio,
   RefreshCw,
   Settings2,
   Smartphone,
@@ -38,7 +37,6 @@ import {
   Clock3,
   Mic,
   ScanLine,
-  ShieldCheck,
 } from "lucide-react";
 import {
   api,
@@ -199,55 +197,18 @@ function Login({
   }
   return (
     <div className="login-wrap">
-      <div className="login-story">
-        <Logo />
-        <div>
-          <span className="eyebrow">
-            A LITTLE LESS EXPLAINING. A LOT MORE LEARNING.
-          </span>
-          <h1>
-            Great teaching
-            <br />
-            deserves a<br />
-            <em>second life.</em>
-          </h1>
-          <p>
-            Turn one live demonstration into a lesson your students can follow,
-            step by step.
-          </p>
-          <div className="login-flow">
-            <span>
-              <Video size={19} /> Demonstrate
-            </span>
-            <ChevronRight size={16} />
-            <span>
-              <Sparkles size={19} /> Review
-            </span>
-            <ChevronRight size={16} />
-            <span>
-              <GraduationCap size={19} /> Learn
-            </span>
-          </div>
-        </div>
-        <small>Built for hands-on learning · ShowOnce MVP</small>
-      </div>
       <div className="login-panel">
-        <span className="badge">
-          <ShieldCheck size={14} /> Instructor-reviewed lessons
-        </span>
-        <h2>Welcome to ShowOnce</h2>
+        <Logo />
+
+        <h1>Sign in</h1>
         <p className="muted">
-          A demonstration is the beginning.
-          <br />A reusable lesson is what comes next.
+          Create and practice lessons for physical or screen-based tasks.
         </p>
         {config.local_login ? (
           <>
             <div className="local-note">
               <strong>Local development</strong>
-              <p>
-                Choose a role to explore the application on this computer.
-                Hosted accounts require sign-in.
-              </p>
+              <p>Choose a role for this local session.</p>
             </div>
             <button
               disabled={busy}
@@ -348,9 +309,8 @@ function Library({
     <>
       <div className="page-heading">
         <div>
-          <span className="eyebrow">YOUR TEACHING, MULTIPLIED</span>
-          <h1>Your lesson library</h1>
-          <p>One demonstration. Clear steps. More confident learners.</p>
+          <h1>Lesson library</h1>
+          <p>Review drafts or open a published lesson.</p>
         </div>
         {user.role === "instructor" && (
           <button
@@ -362,90 +322,10 @@ function Library({
         )}
       </div>
       {error && <Banner tone="error">{error}</Banner>}
-      {user.role === "instructor" && (
-        <section className="hero">
-          <div className="hero-copy">
-            <span className="hero-tag">
-              <span className="dot" /> LIVE DEMONSTRATION → REUSABLE LESSON
-            </span>
-            <h2>
-              Show it once.
-              <br />
-              Make every step count.
-            </h2>
-            <p>
-              Teach naturally. ShowOnce captures what happens,
-              <br className="desktop" /> builds the steps, and brings the lesson
-              together.
-            </p>
-            <button
-              className="button hero-button"
-              onClick={() => navigate("/studio")}
-            >
-              Start a demonstration <ArrowRight size={17} />
-            </button>
-            <span className="hero-foot">
-              <Clock3 size={13} /> Up to 5 minutes <span>·</span> You review
-              before students learn
-            </span>
-          </div>
-          <div className="hero-art" aria-hidden="true">
-            <div className="art-orbit orbit-one" />
-            <div className="art-orbit orbit-two" />
-            <div className="art-mini">
-              <span className="dot" /> LIVE <Video size={15} />
-            </div>
-            <div className="art-card">
-              <div className="art-card-header">
-                <span className="art-icon">
-                  <Sparkles size={19} />
-                </span>
-                <span>
-                  Your demonstration
-                  <br />
-                  <small>Becomes something useful</small>
-                </span>
-              </div>
-              <div className="art-step">
-                <span>1</span>
-                <div>
-                  <strong>Capture the action</strong>
-                  <i />
-                </div>
-                <CheckCircle2 size={17} />
-              </div>
-              <div className="art-step">
-                <span>2</span>
-                <div>
-                  <strong>Make the steps clear</strong>
-                  <i />
-                </div>
-                <CheckCircle2 size={17} />
-              </div>
-              <div className="art-step">
-                <span>3</span>
-                <div>
-                  <strong>Guide the next learner</strong>
-                  <i />
-                </div>
-                <GraduationCap size={17} />
-              </div>
-              <div className="art-card-bottom">
-                <span>
-                  <Eye size={13} /> Reviewed by you
-                </span>
-                <ArrowRight size={14} />
-              </div>
-            </div>
-            <div className="art-float">
-              <Layers3 size={18} /> One moment. Many learners.
-            </div>
-          </div>
-        </section>
-      )}
+
       <div className="stats">
         <div>
-          <span className="stat-icon purple">
+          <span className="stat-icon teal">
             <BookOpen size={20} />
           </span>
           <div>
@@ -478,19 +358,18 @@ function Library({
         <h2>
           All lessons <span className="count">{lessons.length}</span>
         </h2>
-        <span className="muted small">Saved lessons are reusable</span>
       </div>
       {!lessons.length ? (
         <div className="panel">
           <Empty
             title={
               user.role === "instructor"
-                ? "Your first lesson starts with a demonstration"
-                : "Your lessons will appear here"
+                ? "No lessons yet"
+                : "No published lessons yet"
             }
           >
             {user.role === "instructor"
-              ? "Start your camera or share your screen. You don’t need to write the steps first."
+              ? "Capture a task with a camera or screen share. Review the draft before publishing."
               : "Ask your instructor to publish a lesson, then come back to begin."}
           </Empty>
         </div>
@@ -509,7 +388,7 @@ function Library({
               }
             >
               <div className="lesson-card-top">
-                <span className="stat-icon purple">
+                <span className="stat-icon teal">
                   <BookOpen size={22} />
                 </span>
                 <span
@@ -521,10 +400,11 @@ function Library({
                 </span>
               </div>
               <h3>{l.title}</h3>
-              <p>{l.summary || "A lesson built from one demonstration."}</p>
+              <p>{l.summary || "No summary added."}</p>
               <div className="lesson-card-bottom">
                 <span>
-                  <Layers3 size={14} /> {l.step_count} steps
+                  <Layers3 size={14} /> {l.step_count}{" "}
+                  {l.step_count === 1 ? "step" : "steps"}
                 </span>
                 <ArrowRight size={17} />
               </div>
@@ -557,7 +437,7 @@ function Library({
                     )
                   }
                 >
-                  <span className="stat-icon purple">
+                  <span className="stat-icon teal">
                     <Video size={18} />
                   </span>
                   <div>
@@ -573,23 +453,6 @@ function Library({
           </div>
         </>
       )}
-      <div className="principles">
-        <div>
-          <Eye size={18} />
-          <strong>Evidence first</strong>
-          <p>Steps reference what was shown.</p>
-        </div>
-        <div>
-          <CircleHelp size={18} />
-          <strong>Room for uncertainty</strong>
-          <p>Unclear details become questions.</p>
-        </div>
-        <div>
-          <CheckCircle2 size={18} />
-          <strong>Always reviewed</strong>
-          <p>You approve the final lesson.</p>
-        </div>
-      </div>
     </>
   );
 }
@@ -611,6 +474,7 @@ function SourcePicker({
         ] as const
       ).map(([s, Icon, title, desc]) => (
         <button
+          aria-pressed={value === s}
           className={value === s ? "selected" : ""}
           key={s}
           onClick={() => onChange(s)}
@@ -957,16 +821,11 @@ function Live({
     <>
       <div className="page-heading">
         <div>
-          <span className="eyebrow">
-            {practice ? "LEARN BY DOING" : "THE DEMONSTRATION STUDIO"}
-          </span>
-          <h1>
-            {practice ? practice.draft.title : "Teach naturally. We’ll follow."}
-          </h1>
+          <h1>{practice ? practice.draft.title : "New demonstration"}</h1>
           <p>
             {practice
-              ? "Follow the reviewed lesson. Your instructor’s demonstration is your reference."
-              : "No script. No written checklist. Just show how it’s done."}
+              ? "Follow each step and compare your work with the reference."
+              : "Capture a physical task or share your screen. Review before publishing."}
           </p>
         </div>
         <span className="badge">
@@ -985,10 +844,7 @@ function Live({
       {!session ? (
         <div className="panel setup-panel">
           <div className="section-heading">
-            <h2>Choose your view</h2>
-            <span className="badge purple">
-              <Radio size={13} /> Live capture
-            </span>
+            <h2>Capture source</h2>
           </div>
           <SourcePicker value={source} onChange={setSource} />
           <div className="setup-bottom">
@@ -1029,9 +885,8 @@ function Live({
           <div className="setup-tip">
             <Sparkles size={18} />
             <p>
-              Keep important details visible and pause briefly after each
-              action. Explain hidden settings naturally; unclear details can be
-              resolved during review.
+              Keep details visible. Pause after each action and narrate hidden
+              settings. Resolve unclear details during review.
             </p>
           </div>
         </div>
@@ -1194,7 +1049,7 @@ function Live({
           <aside className="panel observation-panel">
             <div className="section-heading">
               <h2>{practice ? "Your next step" : "Steps taking shape"}</h2>
-              <Sparkles size={17} className="purple-text" />
+              <Sparkles size={17} className="accent-text" />
             </div>
             <p className="small muted">
               {practice
@@ -1321,10 +1176,7 @@ function Live({
                 ))}
               </div>
             ) : (
-              <Empty
-                title="The first step starts with you"
-                icon={<Sparkles size={26} />}
-              >
+              <Empty title="No observations yet" icon={<Sparkles size={26} />}>
                 Your observed actions will appear here once live AI analysis is
                 enabled.
               </Empty>
@@ -1479,11 +1331,10 @@ function Review({
     <>
       <div className="page-heading">
         <div>
-          <span className="eyebrow">YOUR EXPERTISE IS THE FINAL STEP</span>
-          <h1>Make the lesson yours.</h1>
+          <h1>Review lesson</h1>
           <p>
-            Check the instructions, clarify the gaps, then share it with your
-            students.
+            Check instructions, screenshots and checkpoints. Resolve required
+            questions before publishing.
           </p>
         </div>
         <span className="badge amber">
@@ -1549,6 +1400,7 @@ function Review({
                   <button
                     className="icon-button"
                     title="Move step up"
+                    aria-label="Move step up"
                     disabled={index === 0}
                     onClick={() =>
                       update({
@@ -1562,6 +1414,7 @@ function Review({
                   <button
                     className="icon-button"
                     title="Move step down"
+                    aria-label="Move step down"
                     disabled={index === draft.steps.length - 1}
                     onClick={() =>
                       update({
@@ -1575,6 +1428,7 @@ function Review({
                   <button
                     className="icon-button danger"
                     title="Delete step"
+                    aria-label="Delete step"
                     onClick={() =>
                       update({
                         ...draft,
@@ -1695,6 +1549,7 @@ function Review({
                     <button
                       className="icon-button danger"
                       title="Remove checkpoint"
+                      aria-label="Remove checkpoint"
                       onClick={() =>
                         updateStep(index, {
                           ...step,
@@ -1763,13 +1618,10 @@ function Review({
         </div>
         <aside>
           <div className="panel publish-panel">
-            <span className="stat-icon purple">
-              <ShieldCheck size={24} />
-            </span>
-            <h3>Ready for your students?</h3>
+            <h3>Publish lesson</h3>
             <p>
-              Publishing saves a fixed version. Future edits won’t change a
-              lesson a student is already following.
+              Publishing creates a fixed version. Later draft edits will not
+              change it.
             </p>
             <div className="review-check">
               <span>
@@ -1880,7 +1732,6 @@ function LessonView({
     <>
       <div className="page-heading">
         <div>
-          <span className="eyebrow">A DEMONSTRATION, NOW A LESSON</span>
           <h1>{d.title}</h1>
           <p>{d.summary}</p>
         </div>
@@ -2039,14 +1890,9 @@ function Setup({ config }: { config: Config }) {
     <>
       <div className="page-heading">
         <div>
-          <span className="eyebrow">A SMALL, HONEST PROTOTYPE</span>
           <h1>Connection & validation</h1>
-          <p>
-            Know what’s connected, what’s been tested, and what still needs
-            evidence.
-          </p>
+          <p>Check service connections and prototype limits.</p>
         </div>
-        <span className="badge green">RM0 service target</span>
       </div>
       <div className="settings-grid">
         <section className="panel">
@@ -2208,10 +2054,8 @@ function PhoneCapture({ id }: { id: string }) {
       <span className="badge">
         <Smartphone size={14} /> Paired camera
       </span>
-      <h1>A closer look.</h1>
-      <p>
-        Position your phone so the work and its important details are visible.
-      </p>
+      <h1>Phone camera</h1>
+      <p>Keep the work and important details in view.</p>
       {error && <Banner tone="error">{error}</Banner>}
       <div className="phone-video">
         <video ref={capture.videoRef} playsInline muted autoPlay />
@@ -2270,6 +2114,13 @@ export default function App() {
   const [error, setError] = useState("");
   const [mobileMenu, setMobileMenu] = useState(false);
   useEffect(() => {
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileMenu(false);
+    };
+    addEventListener("keydown", close);
+    return () => removeEventListener("keydown", close);
+  }, []);
+  useEffect(() => {
     void api<Config>("/config")
       .then(async (c) => {
         setConfig(c);
@@ -2302,11 +2153,15 @@ export default function App() {
   };
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
       <aside className={"sidebar " + (mobileMenu ? "open" : "")}>
         <Logo />
-        <span className="workspace-label">LEARNING WORKSPACE</span>
-        <nav>
+        <span className="workspace-label">Workspace</span>
+        <nav aria-label="Main navigation" id="main-navigation">
           <button
+            aria-current={section === "library" ? "page" : undefined}
             className={section === "library" ? "active" : ""}
             onClick={() => go("/")}
           >
@@ -2314,6 +2169,7 @@ export default function App() {
           </button>
           {user.role === "instructor" && (
             <button
+              aria-current={section === "studio" ? "page" : undefined}
               className={section === "studio" ? "active" : ""}
               onClick={() => go("/studio")}
             >
@@ -2321,22 +2177,14 @@ export default function App() {
             </button>
           )}
           <button
+            aria-current={section === "settings" ? "page" : undefined}
             className={section === "settings" ? "active" : ""}
             onClick={() => go("/settings")}
           >
             <Settings2 size={18} /> Connection & validation
           </button>
         </nav>
-        <div className="sidebar-note">
-          <span className="sidebar-note-icon">
-            <Sparkles size={19} />
-          </span>
-          <strong>Let the teaching flow.</strong>
-          <p>
-            ShowOnce follows your demonstration. Your expertise makes the lesson
-            complete.
-          </p>
-        </div>
+
         <div className="sidebar-bottom">
           <span className="avatar">
             {user.role === "instructor" ? "I" : "S"}
@@ -2354,6 +2202,7 @@ export default function App() {
           <button
             className="icon-button"
             title="Sign out"
+            aria-label="Sign out"
             onClick={() => {
               void logoutHostedAuth(config);
               setToken("");
@@ -2369,13 +2218,14 @@ export default function App() {
         <header className="topbar">
           <button
             className="icon-button mobile-menu"
-            title="Open navigation"
+            aria-label={mobileMenu ? "Close navigation" : "Open navigation"}
+            aria-expanded={mobileMenu}
+            aria-controls="main-navigation"
             onClick={() => setMobileMenu(!mobileMenu)}
           >
             <Layers3 size={20} />
           </button>
           <span>
-            Workspace <ChevronRight size={13} />{" "}
             <strong>
               {section === "studio"
                 ? "Demonstration studio"
@@ -2403,7 +2253,7 @@ export default function App() {
             </span>
           </div>
         </header>
-        <main>
+        <main id="main-content" tabIndex={-1}>
           {path.startsWith("/review/") ? (
             <Review
               id={path.split("/")[2]}
@@ -2437,10 +2287,6 @@ export default function App() {
             <Library user={user} navigate={navigate} />
           )}
         </main>
-        <footer className="app-footer">
-          <span>ShowOnce · One demonstration, a reusable lesson.</span>
-          <span>Observe. Review. Learn.</span>
-        </footer>
       </div>
     </div>
   );

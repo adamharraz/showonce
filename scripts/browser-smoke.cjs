@@ -28,7 +28,7 @@ let activeBrowser;
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("http://127.0.0.1:8000");
   await page.getByRole("button", { name: /instructor/i }).click();
-  await page.getByRole("heading", { name: "Show it once." }).waitFor();
+  await page.getByRole("heading", { name: "Lesson library" }).waitFor();
   await page.screenshot({
     path: "artifacts/ui/library-desktop.png",
     fullPage: true,
