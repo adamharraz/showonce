@@ -26,7 +26,6 @@ import {
   RefreshCw,
   Settings2,
   Smartphone,
-  Sparkles,
   Square,
   Trash2,
   Video,
@@ -215,7 +214,7 @@ function Login({
               className="button primary full"
               onClick={() => local("instructor")}
             >
-              Enter as instructor <ArrowRight size={17} />
+              Enter as instructor
             </button>
             <button
               disabled={busy}
@@ -253,7 +252,7 @@ function Login({
               />
             </label>
             <button disabled={busy} className="button primary full">
-              {busy ? "Signing in…" : "Sign in"} <ArrowRight size={17} />
+              {busy ? "Signing in…" : "Sign in"}
             </button>
             <p className="fine">
               Accounts are provided by your instructor. Public registration is
@@ -294,23 +293,44 @@ function Library({
   const [lessons, setLessons] = useState<LessonCard[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [error, setError] = useState("");
-  useEffect(() => {
-    void Promise.all([
-      api<LessonCard[]>("/lessons"),
-      api<Session[]>("/sessions"),
-    ])
-      .then(([l, s]) => {
-        setLessons(l);
-        setSessions(s);
-      })
-      .catch((e) => setError(e.message));
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<"all" | "draft" | "published">("all");
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const [savedLessons, savedSessions] = await Promise.all([
+        api<LessonCard[]>("/lessons"),
+        api<Session[]>("/sessions"),
+      ]);
+      setLessons(savedLessons);
+      setSessions(savedSessions);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  const visibleLessons = lessons.filter(
+    (lesson) =>
+      filter === "all" ||
+      (filter === "published"
+        ? !!lesson.latest_version
+        : !lesson.latest_version),
+  );
   return (
     <>
-      <div className="page-heading">
+      <div className="page-heading library-heading">
         <div>
           <h1>Lesson library</h1>
-          <p>Review drafts or open a published lesson.</p>
+          <p>
+            {user.role === "instructor"
+              ? "Your demonstrations, ready for the next learner."
+              : "Choose a lesson. Practice at your own pace."}
+          </p>
         </div>
         {user.role === "instructor" && (
           <button
@@ -321,61 +341,84 @@ function Library({
           </button>
         )}
       </div>
-      {error && <Banner tone="error">{error}</Banner>}
-
-      <div className="stats">
-        <div>
-          <span className="stat-icon teal">
-            <BookOpen size={20} />
-          </span>
-          <div>
-            <strong>{lessons.filter((l) => l.latest_version).length}</strong>
-            <span>Published lessons</span>
-          </div>
+      {error && (
+        <Banner tone="error">
+          {error}{" "}
+          <button className="text-button" onClick={() => void load()}>
+            Retry loading
+          </button>
+        </Banner>
+      )}
+      <div className="library-toolbar">
+        <div
+          className="lesson-filters"
+          role="group"
+          aria-label="Filter lessons"
+        >
+          {(
+            [
+              "all",
+              "published",
+              ...(user.role === "instructor" ? ["draft"] : []),
+            ] as const
+          ).map((value) => (
+            <button
+              key={value}
+              aria-pressed={filter === value}
+              onClick={() => setFilter(value as typeof filter)}
+            >
+              {value === "all"
+                ? "All lessons"
+                : value === "published"
+                  ? "Published"
+                  : "Drafts"}
+              {!loading && (
+                <span>
+                  {
+                    lessons.filter(
+                      (l) =>
+                        value === "all" ||
+                        (value === "published"
+                          ? !!l.latest_version
+                          : !l.latest_version),
+                    ).length
+                  }
+                </span>
+              )}
+            </button>
+          ))}
         </div>
-        <div>
-          <span className="stat-icon amber">
-            <FileText size={20} />
+        {!loading && (
+          <span className="library-tally">
+            {lessons.reduce((sum, l) => sum + l.step_count, 0)} steps saved
           </span>
-          <div>
-            <strong>
-              {lessons.filter((l) => l.owned && !l.latest_version).length}
-            </strong>
-            <span>Awaiting review</span>
-          </div>
-        </div>
-        <div>
-          <span className="stat-icon green">
-            <Layers3 size={20} />
-          </span>
-          <div>
-            <strong>{lessons.reduce((sum, l) => sum + l.step_count, 0)}</strong>
-            <span>Steps in your library</span>
-          </div>
-        </div>
+        )}
       </div>
-      <div className="section-heading">
-        <h2>
-          All lessons <span className="count">{lessons.length}</span>
-        </h2>
-      </div>
-      {!lessons.length ? (
-        <div className="panel">
+      {loading ? (
+        <div className="library-loading" role="status">
+          Loading your lessons…
+        </div>
+      ) : error ? null : !visibleLessons.length ? (
+        <div className="library-empty">
           <Empty
             title={
-              user.role === "instructor"
-                ? "No lessons yet"
-                : "No published lessons yet"
+              lessons.length
+                ? "No lessons in this view"
+                : user.role === "instructor"
+                  ? "A lesson begins with something you know."
+                  : "Your next lesson is on its way."
             }
           >
-            {user.role === "instructor"
-              ? "Capture a task with a camera or screen share. Review the draft before publishing."
-              : "Ask your instructor to publish a lesson, then come back to begin."}
+            {lessons.length
+              ? "Choose another filter to see your saved lessons."
+              : user.role === "instructor"
+                ? "Record a physical task or share your screen. You review the steps before anyone practices."
+                : "Your instructor's published lessons will appear here."}
           </Empty>
         </div>
       ) : (
         <div className="lesson-grid">
-          {lessons.map((l) => (
+          {visibleLessons.map((l) => (
             <button
               className="lesson-card"
               key={l.id}
@@ -387,10 +430,10 @@ function Library({
                 )
               }
             >
+              <span className="lesson-index" aria-hidden="true">
+                {String(lessons.indexOf(l) + 1).padStart(2, "0")}
+              </span>
               <div className="lesson-card-top">
-                <span className="stat-icon teal">
-                  <BookOpen size={22} />
-                </span>
                 <span
                   className={"badge " + (!l.latest_version ? "amber" : "green")}
                 >
@@ -400,7 +443,12 @@ function Library({
                 </span>
               </div>
               <h3>{l.title}</h3>
-              <p>{l.summary || "No summary added."}</p>
+              <p>
+                {l.summary ||
+                  (l.latest_version
+                    ? "Reviewed instructions and reference evidence."
+                    : "Continue reviewing this demonstration.")}
+              </p>
               <div className="lesson-card-bottom">
                 <span>
                   <Layers3 size={14} /> {l.step_count}{" "}
@@ -883,7 +931,6 @@ function Live({
             </button>
           </div>
           <div className="setup-tip">
-            <Sparkles size={18} />
             <p>
               Keep details visible. Pause after each action and narrate hidden
               settings. Resolve unclear details during review.
@@ -1049,7 +1096,6 @@ function Live({
           <aside className="panel observation-panel">
             <div className="section-heading">
               <h2>{practice ? "Your next step" : "Steps taking shape"}</h2>
-              <Sparkles size={17} className="accent-text" />
             </div>
             <p className="small muted">
               {practice
@@ -1176,7 +1222,7 @@ function Live({
                 ))}
               </div>
             ) : (
-              <Empty title="No observations yet" icon={<Sparkles size={26} />}>
+              <Empty title="No observations yet" icon={<Eye size={26} />}>
                 Your observed actions will appear here once live AI analysis is
                 enabled.
               </Empty>
@@ -1660,7 +1706,7 @@ function Review({
               }
               onClick={() => void revise()}
             >
-              <Sparkles size={16} /> Apply clarifications with AI
+              <RefreshCw size={16} /> Apply clarifications with AI
             </button>
             <button
               className="text-button"
@@ -2224,14 +2270,23 @@ export default function App() {
             onClick={() => setMobileMenu(!mobileMenu)}
           >
             <Layers3 size={20} />
+            <span className="mobile-menu-label">
+              {mobileMenu ? "Close" : "Menu"}
+            </span>
           </button>
           <span>
             <strong>
-              {section === "studio"
-                ? "Demonstration studio"
-                : section === "settings"
-                  ? "Connection & validation"
-                  : "Lesson library"}
+              {path.startsWith("/review/")
+                ? "Lesson review"
+                : path.startsWith("/practice/")
+                  ? "Practice"
+                  : path.startsWith("/lesson/")
+                    ? "Published lesson"
+                    : section === "studio"
+                      ? "Demonstration studio"
+                      : section === "settings"
+                        ? "Connection & validation"
+                        : "Lesson library"}
             </strong>
           </span>
           <div>
@@ -2245,8 +2300,8 @@ export default function App() {
             >
               <span className="dot" />
               {config.ai_configured && config.free_tier_confirmed
-                ? "AI configured"
-                : "AI not connected"}
+                ? "AI ready"
+                : "AI offline"}
             </span>
             <span className="top-avatar">
               {user.role === "instructor" ? "I" : "S"}
