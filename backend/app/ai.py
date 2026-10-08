@@ -43,10 +43,40 @@ class AIError(Exception):
         super().__init__(message)
         self.code = code
 
+def inference_schema(model):
+    """Use a compact wire schema; Pydantic still enforces all local limits.
+
+    Full nested schemas were rejected in the real access gate. Supply limits
+    as guidance and keep hard validation at the application edge.
+    """
+    source = model.model_json_schema()
+    definitions = source.get('$defs', {})
+    allowed = {'type', 'description', 'enum', 'properties', 'required', 'additionalProperties', 'items', 'anyOf'}
+    def clean(value):
+        if isinstance(value, list):
+            return [clean(item) for item in value]
+        if not isinstance(value, dict):
+            return value
+        if '$ref' in value:
+            return clean(definitions[value['$ref'].rsplit('/', 1)[-1]])
+        result = {key: ({name: clean(child) for name, child in item.items()} if key == 'properties' else clean(item)) for key, item in value.items() if key in allowed}
+        limits = []
+        if 'maxLength' in value:
+            limits.append(f"At most {value['maxLength']} characters.")
+        if 'maxItems' in value:
+            limits.append(f"At most {value['maxItems']} items; use an empty array when none apply.")
+        if limits:
+            result['description'] = ' '.join([result.get('description', ''), *limits]).strip()
+        if result.get('type') == 'object':
+            # Require actual result fields, leaving generated IDs optional.
+            result['required'] = [name for name in result.get('properties', {}) if name != 'id']
+        return result
+    return clean(source)
+
 class Gemini:
     def __init__(self, settings):
         self.settings = settings
-        self.client = genai.Client(api_key=settings.gemini_key) if settings.gemini_key else None
+        self.client = genai.Client(api_key=settings.gemini_key, http_options=types.HttpOptions(timeout=45000, retry_options=types.HttpRetryOptions(attempts=1))) if settings.gemini_key else None
         self.last_usage = {}
         self.actual_model = None
 
@@ -63,6 +93,8 @@ class Gemini:
             return AIError('Free quota exhausted. Saved observations are preserved; AI calls are paused.', 'quota')
         if str(code) in ('404', '403'):
             return AIError('This model is unavailable for the configured project.', 'model_unavailable')
+        if str(code) in ('500', '502', '503', '504'):
+            return AIError('The model service is temporarily busy or unavailable. Saved work is preserved; try again shortly.', 'model_busy')
         if isinstance(exc, (TimeoutError, ConnectionError, OSError)) or type(exc).__name__.startswith('ConnectionClosed'):
             return AIError('The live connection was interrupted.', 'connection')
         return AIError('The AI request failed. No lesson or checkpoint changes were accepted.', 'ai_error')
@@ -76,6 +108,7 @@ class Gemini:
     async def structured(self, model, system, prompt, schema, frames=(), pcm=b''):
         self.ready()
         self.actual_model = model
+        self.last_usage = {}
         inputs = [{'type': 'text', 'text': prompt}, *self.image_inputs(frames)]
         if pcm:
             buffer = io.BytesIO()
@@ -89,12 +122,16 @@ class Gemini:
                     parts.extend([types.Part(text=f"Frame {f['id']}, elapsed {f['timestamp_ms']} ms"), types.Part.from_bytes(data=f['bytes'], mime_type='image/jpeg')])
                 if pcm:
                     parts.append(types.Part.from_bytes(data=buffer.getvalue(), mime_type='audio/wav'))
-                response = await self.client.aio.models.generate_content(model=model, contents=parts, config=types.GenerateContentConfig(system_instruction=system, response_mime_type='application/json', response_schema=schema, max_output_tokens=8192, thinking_config=types.ThinkingConfig(thinking_budget=0)))
+                response = await self.client.aio.models.generate_content(model=model, contents=parts, config=types.GenerateContentConfig(system_instruction=system, response_mime_type='application/json', response_json_schema=inference_schema(schema), max_output_tokens=8192, thinking_config=types.ThinkingConfig(thinking_budget=0)))
                 output = response.text
                 self.last_usage = response.usage_metadata.model_dump(mode='json') if response.usage_metadata else {}
             else:
-                response = await self.client.aio.interactions.create(model=model, input=inputs, system_instruction=system, response_format={'type': 'text', 'mime_type': 'application/json', 'schema': schema.model_json_schema()}, generation_config={'thinking_level': 'low', 'max_output_tokens': 8192}, store=False, timeout=45)
-                output = getattr(response, 'output_text', None) or ''.join(getattr(x, 'text', '') for x in response.outputs if getattr(x, 'type', '') == 'text')
+                interactions = self.client.aio.interactions
+                # The pinned SDK counts Interactions retries differently from
+                # generateContent attempts. Disable that resource's retry policy.
+                interactions.sdk_configuration.retry_config = None
+                response = await interactions.create(model=model, input=inputs, system_instruction=system, response_format={'type': 'text', 'mime_type': 'application/json', 'schema': inference_schema(schema)}, generation_config={'thinking_level': 'low', 'max_output_tokens': 8192}, store=False, timeout=45)
+                output = response.output_text or ''
                 self.last_usage = response.usage.model_dump(mode='json') if getattr(response, 'usage', None) else {}
             return schema.model_validate_json(output)
         except (ValueError, TypeError) as exc:

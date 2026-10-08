@@ -17,7 +17,7 @@ class Settings:
     origin: str = field(default_factory=lambda: os.getenv('APP_ORIGIN', 'http://localhost:8000').rstrip('/'))
     physical_observer: str = field(default_factory=lambda: os.getenv('PHYSICAL_OBSERVER', 'er2'))
     general_model: str = field(default_factory=lambda: os.getenv('GENERAL_MODEL', 'gemini-3.8-flash'))
-    fallback_model: str = field(default_factory=lambda: os.getenv('GENERAL_FALLBACK_MODEL', 'gemini-2.5-flash'))
+    fallback_model: str = field(default_factory=lambda: os.getenv('GENERAL_FALLBACK_MODEL', 'gemini-3.5-flash-lite'))
     physical_assessor: str = field(default_factory=lambda: os.getenv('PHYSICAL_ASSESSOR', 'gemini-robotics-er-2-preview'))
     interval: float = field(default_factory=lambda: max(10., float(os.getenv('ANALYSIS_INTERVAL', '10'))))
     daily_limit: int = field(default_factory=lambda: int(os.getenv('DAILY_ANALYSIS_LIMIT', '120')))

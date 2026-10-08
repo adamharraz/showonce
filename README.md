@@ -6,9 +6,9 @@ One live demonstration becomes a reviewed, reusable lesson. Students then practi
 
 Implemented: React/TypeScript capture and review app, FastAPI backend, webcam/screen/phone capture, temporary narration, ER2 Live and windowed Gemini adapters, persistent observation ledger, clarification and editing, immutable published versions, practice feedback guards, private evidence, exports, failure recovery, free-tier controls, deployment configuration and evaluation tools.
 
-**Real Gemini access, actual free quotas, hosted deployment, ESP32/Sheets accuracy, beginner pilots and TRL4 evidence have not been verified.** No credentials were available during implementation. The app never substitutes canned responses for live AI. Synthetic input and fake model results exist only in automated tests.
+**Real ER2 streaming, standard ER2 and Flash Lite requests passed the local access gate on 8 October 2026.** A real Flash Lite pipeline extracted a tutorial from synthetic before/after screenshots and identified a missing circle in a synthetic student image. This verifies API integration, not ESP32/Sheets accuracy, narration, real-device capture or TRL4. Actual account quotas, hosted deployment and beginner pilots remain unverified. The app never substitutes canned responses for live AI; fake model results exist only in tests.
 
-The local app works without cloud credentials, but cannot generate a tutorial or AI feedback until a real Gemini key is configured. Use it to check capture and connection handling first.
+The local app works without cloud credentials. This workspace has a private Gemini key and its Free-tier guard enabled following the owner's confirmation that paid billing is absent. Clones need their own key and Free-tier confirmation. The local general model is currently `gemini-3.5-flash-lite` because Flash 3.8 returned HTTP 503 capacity errors; ER2 remains the physical observer and assessor.
 
 ## Run locally on Windows
 
@@ -37,7 +37,7 @@ Dependencies are already installed in this workspace. Its host Python is 3.13; a
 2. Put `GEMINI_API_KEY` in `backend/.env`, never the frontend or chat. Apply the Gemini API key restrictions required by AI Studio. Set `FREE_TIER_CONFIRMED=true` only after checking the account. This flag is a manual budget guard; the application cannot inspect Google's billing state.
 3. Run `.\.venv\Scripts\python.exe scripts\probe_models.py`. It performs up to four small real requests and saves access, errors, usage and latency. It does not verify daily quotas. API calls share the application's persistent daily call guard.
 4. Run one narrated five-minute session in the app. Export its evidence before publication discards unselected frames. Check lost narration, readability, ordering, updates, context and quota use against `docs/VALIDATION.md`.
-5. If ER2 Live fails the gate, set `PHYSICAL_OBSERVER=flash`. If Flash 3.8 is unavailable, set `GENERAL_MODEL=gemini-2.5-flash`. Restart after changing settings. Quota exhaustion always stops calls; it never triggers a paid fallback.
+5. If ER2 Live fails the gate, set `PHYSICAL_OBSERVER=flash`. If Flash 3.8 is unavailable or busy, set `GENERAL_MODEL=gemini-3.5-flash-lite` and `GENERAL_FALLBACK_MODEL=gemini-3.8-flash`, then validate this configuration. The 2.5 Flash endpoint returned HTTP 404 for this project. Restart after changing settings. Quota exhaustion always stops calls; it never triggers a paid fallback.
 
 Default models:
 
@@ -47,7 +47,9 @@ Default models:
 | Screen/window observation and final lesson | `gemini-3.8-flash` |
 | Physical learner checking, pending comparison | `gemini-robotics-er-2-preview` |
 | Screen learner checking | `gemini-3.8-flash` |
-| Unavailable general endpoint fallback | `gemini-2.5-flash` |
+| Unavailable general endpoint fallback | `gemini-3.5-flash-lite` |
+
+These are defaults for a new installation; `/api/config` reports the actual local configuration. Google GenAI SDK 2.29.0 is pinned for the current Interactions schema and `steps` responses. Structured requests use a compact JSON schema; full Pydantic validation still rejects invalid types, oversized fields and unknown properties. SDK automatic retries are disabled so quota and capacity failures remain explicit.
 
 Physical assessment must be narrowed and its model chosen from real labelled examples before claiming validation. Set `PHYSICAL_ASSESSOR=gemini-3.8-flash` if Flash wins. Neither robotics actions nor generated code are executed.
 
