@@ -59,6 +59,18 @@ let browser;
   await page.getByRole("button", { name: /Finish & review/i }).click();
   await page.getByRole("heading", { name: "Review lesson" }).waitFor();
   await inspectLayout("review");
+  const reviewPath = new URL(page.url()).pathname;
+  await page
+    .getByRole("button", { name: "Lesson library", exact: true })
+    .click();
+  await page.getByRole("heading", { name: "In review", exact: true }).waitFor();
+  await inspectLayout("review-queue");
+  await page.locator(".review-queue-entry").first().click();
+  await page
+    .getByRole("heading", { name: "Review lesson", exact: true })
+    .waitFor();
+  if (new URL(page.url()).pathname !== reviewPath)
+    throw new Error("Review queue opened the wrong lesson");
   if (
     await page
       .getByRole("button", { name: "Publish lesson", exact: true })

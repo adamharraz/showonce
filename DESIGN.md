@@ -1,5 +1,7 @@
 # ShowOnce visual direction
 
+The approved demonstration-first revision in DEMONSTRATION-DESIGN.md supersedes the historical field-manual direction below.
+
 ShowOnce is a workspace for learning physical and screen-based tasks through reviewed demonstrations. The owner wants a professional, simple interface that feels interesting and engaging, without promotional banners, repeated slogans or generic AI decoration.
 
 Reading: an editorial workshop for instructors and adult students. ENERGY 2 / RHYTHM 2 / MOTION 1.

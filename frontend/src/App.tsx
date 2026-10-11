@@ -295,6 +295,10 @@ function Library({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "draft" | "published">("all");
+  const [query, setQuery] = useState("");
+  const [taskType, setTaskType] = useState<"all" | "physical" | "screen">(
+    "all",
+  );
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -316,28 +320,37 @@ function Library({
   }, [load]);
   const visibleLessons = lessons.filter(
     (lesson) =>
-      filter === "all" ||
-      (filter === "published"
-        ? !!lesson.latest_version
-        : !lesson.latest_version),
+      (filter === "all" ||
+        (filter === "published"
+          ? !!lesson.latest_version
+          : !lesson.latest_version)) &&
+      (taskType === "all" ||
+        (taskType === "screen"
+          ? lesson.source === "screen"
+          : lesson.source === "camera" || lesson.source === "phone")) &&
+      `${lesson.title} ${lesson.summary}`
+        .toLowerCase()
+        .includes(query.toLowerCase().trim()),
   );
+  const activePractice = sessions.find(
+    (s) => s.mode === "practice" && s.state !== "finished",
+  );
+  const featured =
+    lessons.find((l) => l.id === activePractice?.lesson_id) ||
+    lessons.find((l) => !!l.latest_version);
+  const drafts = lessons.filter((l) => l.owned && !l.latest_version);
   return (
     <>
       <div className="page-heading library-heading">
         <div>
-          <h1>Lesson library</h1>
-          <p>
-            {user.role === "instructor"
-              ? "Your demonstrations, ready for the next learner."
-              : "Choose a lesson. Practice at your own pace."}
-          </p>
+          <h1>Your lessons</h1>
         </div>
         {user.role === "instructor" && (
           <button
             className="button primary"
             onClick={() => navigate("/studio")}
           >
-            <Plus size={18} /> New demonstration
+            <Plus size={18} /> Record a demonstration
           </button>
         )}
       </div>
@@ -349,117 +362,223 @@ function Library({
           </button>
         </Banner>
       )}
-      <div className="library-toolbar">
-        <div
-          className="lesson-filters"
-          role="group"
-          aria-label="Filter lessons"
+      {!loading && !error && featured && (
+        <section
+          className="practice-feature"
+          aria-labelledby="continue-heading"
         >
-          {(
-            [
-              "all",
-              "published",
-              ...(user.role === "instructor" ? ["draft"] : []),
-            ] as const
-          ).map((value) => (
-            <button
-              key={value}
-              aria-pressed={filter === value}
-              onClick={() => setFilter(value as typeof filter)}
-            >
-              {value === "all"
-                ? "All lessons"
-                : value === "published"
-                  ? "Published"
-                  : "Drafts"}
-              {!loading && (
-                <span>
-                  {
-                    lessons.filter(
-                      (l) =>
-                        value === "all" ||
-                        (value === "published"
-                          ? !!l.latest_version
-                          : !l.latest_version),
-                    ).length
-                  }
-                </span>
+          <h2 id="continue-heading">
+            {activePractice ? "Continue practising" : "Ready to practise"}
+          </h2>
+          <div className="practice-feature-body">
+            <div className="feature-media">
+              <LessonPreview lesson={featured} />
+              {featured.evidence_ids.length > 1 && (
+                <div
+                  className="frame-strip"
+                  aria-label="Demonstration reference frames"
+                >
+                  {featured.evidence_ids.map((id, i) => (
+                    <Evidence key={id} id={id} label={`Reference ${i + 1}`} />
+                  ))}
+                </div>
               )}
-            </button>
-          ))}
-        </div>
-        {!loading && (
-          <span className="library-tally">
-            {lessons.reduce((sum, l) => sum + l.step_count, 0)} steps saved
-          </span>
+            </div>
+            <div className="feature-copy">
+              <h3>{activePractice?.title || featured.title}</h3>
+              <p className="feature-status">
+                {activePractice
+                  ? `Saved session · ${activePractice.state.replaceAll("_", " ")}`
+                  : `${featured.step_count} ${featured.step_count === 1 ? "step" : "steps"} · Published v${featured.latest_version}`}
+              </p>
+              {featured.summary && <p>{featured.summary}</p>}
+              <button
+                className="button primary"
+                onClick={() =>
+                  navigate(
+                    activePractice
+                      ? `/practice/${activePractice.id}`
+                      : `/lesson/${featured.id}`,
+                  )
+                }
+              >
+                <Play size={17} />
+                {activePractice ? "Resume practice" : "Open lesson"}
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+      <div
+        className={
+          "library-layout " + (drafts.length && !error ? "has-review" : "")
+        }
+      >
+        <section className="library-main" aria-labelledby="library-title">
+          <div className="library-section-heading">
+            <h2 id="library-title">Lesson library</h2>
+            <label className="lesson-search">
+              <span className="sr-only">Search lessons</span>
+              <input
+                type="search"
+                placeholder="Search lessons"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </label>
+          </div>
+          <div className="task-filters" role="group" aria-label="Task type">
+            {(["all", "physical", "screen"] as const).map((type) => (
+              <button
+                key={type}
+                aria-pressed={taskType === type}
+                onClick={() => setTaskType(type)}
+              >
+                {type === "all"
+                  ? "All tasks"
+                  : type === "physical"
+                    ? "Physical tasks"
+                    : "On screen"}
+              </button>
+            ))}
+          </div>
+          <div className="library-toolbar">
+            <div
+              className="lesson-filters"
+              role="group"
+              aria-label="Filter lessons"
+            >
+              {(
+                [
+                  "all",
+                  "published",
+                  ...(user.role === "instructor" ? ["draft"] : []),
+                ] as const
+              ).map((value) => (
+                <button
+                  key={value}
+                  aria-pressed={filter === value}
+                  onClick={() => setFilter(value as typeof filter)}
+                >
+                  {value === "all"
+                    ? "All lessons"
+                    : value === "published"
+                      ? "Published"
+                      : "Drafts"}
+                  {!loading && (
+                    <span>
+                      {
+                        lessons.filter(
+                          (l) =>
+                            value === "all" ||
+                            (value === "published"
+                              ? !!l.latest_version
+                              : !l.latest_version),
+                        ).length
+                      }
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+          {loading ? (
+            <div className="library-loading" role="status">
+              Loading your lessons…
+            </div>
+          ) : error ? null : !visibleLessons.length ? (
+            <div className="library-empty">
+              <Empty
+                title={
+                  lessons.length
+                    ? "No lessons in this view"
+                    : user.role === "instructor"
+                      ? "A lesson begins with something you know."
+                      : "Your next lesson is on its way."
+                }
+              >
+                {lessons.length
+                  ? "Try another search or filter."
+                  : user.role === "instructor"
+                    ? "Record a physical task or share your screen. You review the steps before anyone practices."
+                    : "Your instructor's published lessons will appear here."}
+              </Empty>
+            </div>
+          ) : (
+            <div className="lesson-grid">
+              {visibleLessons.map((l) => (
+                <button
+                  className="lesson-card"
+                  key={l.id}
+                  onClick={() =>
+                    navigate(
+                      l.owned && !l.latest_version
+                        ? "/review/" + l.id
+                        : "/lesson/" + l.id,
+                    )
+                  }
+                >
+                  <span className="lesson-thumbnail">
+                    <LessonPreview lesson={l} />
+                  </span>
+                  <div className="lesson-card-top">
+                    <span
+                      className={
+                        "badge " + (!l.latest_version ? "amber" : "green")
+                      }
+                    >
+                      {l.latest_version
+                        ? "Published · v" + l.latest_version
+                        : "Draft"}
+                    </span>
+                  </div>
+                  <h3>{l.title}</h3>
+                  <p>
+                    {l.summary ||
+                      (l.source === "screen"
+                        ? "Screen demonstration"
+                        : l.source
+                          ? "Physical demonstration"
+                          : "Demonstration")}
+                  </p>
+                  <div className="lesson-card-bottom">
+                    <span>
+                      <Layers3 size={14} /> {l.step_count}{" "}
+                      {l.step_count === 1 ? "step" : "steps"}
+                    </span>
+                    <ArrowRight size={17} />
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+        {!!drafts.length && !loading && !error && (
+          <aside className="review-queue" aria-labelledby="review-queue-title">
+            <h2 id="review-queue-title">In review</h2>
+            {drafts.slice(0, 3).map((l) => (
+              <button
+                key={l.id}
+                className="review-queue-entry"
+                onClick={() => navigate(`/review/${l.id}`)}
+              >
+                <span className="lesson-thumbnail">
+                  <LessonPreview lesson={l} />
+                </span>
+                <span>
+                  <strong>{l.title}</strong>
+                  <small>
+                    {l.unresolved_count
+                      ? `${l.unresolved_count} ${l.unresolved_count === 1 ? "question" : "questions"} to resolve`
+                      : "Ready for your review"}
+                  </small>
+                  <span className="review-link">Review draft</span>
+                </span>
+              </button>
+            ))}
+          </aside>
         )}
       </div>
-      {loading ? (
-        <div className="library-loading" role="status">
-          Loading your lessons…
-        </div>
-      ) : error ? null : !visibleLessons.length ? (
-        <div className="library-empty">
-          <Empty
-            title={
-              lessons.length
-                ? "No lessons in this view"
-                : user.role === "instructor"
-                  ? "A lesson begins with something you know."
-                  : "Your next lesson is on its way."
-            }
-          >
-            {lessons.length
-              ? "Choose another filter to see your saved lessons."
-              : user.role === "instructor"
-                ? "Record a physical task or share your screen. You review the steps before anyone practices."
-                : "Your instructor's published lessons will appear here."}
-          </Empty>
-        </div>
-      ) : (
-        <div className="lesson-grid">
-          {visibleLessons.map((l) => (
-            <button
-              className="lesson-card"
-              key={l.id}
-              onClick={() =>
-                navigate(
-                  l.owned && !l.latest_version
-                    ? "/review/" + l.id
-                    : "/lesson/" + l.id,
-                )
-              }
-            >
-              <span className="lesson-index" aria-hidden="true">
-                {String(lessons.indexOf(l) + 1).padStart(2, "0")}
-              </span>
-              <div className="lesson-card-top">
-                <span
-                  className={"badge " + (!l.latest_version ? "amber" : "green")}
-                >
-                  {l.latest_version
-                    ? "Published · v" + l.latest_version
-                    : "Draft"}
-                </span>
-              </div>
-              <h3>{l.title}</h3>
-              <p>
-                {l.summary ||
-                  (l.latest_version
-                    ? "Reviewed instructions and reference evidence."
-                    : "Continue reviewing this demonstration.")}
-              </p>
-              <div className="lesson-card-bottom">
-                <span>
-                  <Layers3 size={14} /> {l.step_count}{" "}
-                  {l.step_count === 1 ? "step" : "steps"}
-                </span>
-                <ArrowRight size={17} />
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
       {!!sessions.filter(
         (s) =>
           s.mode === "practice" || !lessons.some((l) => l.id === s.lesson_id),
@@ -502,6 +621,17 @@ function Library({
         </>
       )}
     </>
+  );
+}
+
+function LessonPreview({ lesson }: { lesson: LessonCard }) {
+  return lesson.evidence_ids[0] ? (
+    <Evidence id={lesson.evidence_ids[0]} />
+  ) : (
+    <span className="lesson-preview-empty">
+      <Video size={24} />
+      <span>No reference image</span>
+    </span>
   );
 }
 
@@ -2262,6 +2392,9 @@ export default function App() {
       </aside>
       <div className="workspace">
         <header className="topbar">
+          <span className="mobile-brand">
+            <Logo />
+          </span>
           <button
             className="icon-button mobile-menu"
             aria-label={mobileMenu ? "Close navigation" : "Open navigation"}

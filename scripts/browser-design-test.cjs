@@ -136,7 +136,7 @@ let browser;
     "Pending library request shows a named loading state before data appears.",
   );
   await page
-    .getByRole("button", { name: "New demonstration", exact: true })
+    .getByRole("button", { name: "Record a demonstration", exact: true })
     .click();
   for (const name of ["Phone camera", "Share screen", "Webcam"]) {
     const source = page.getByRole("button", { name: new RegExp(name) });
