@@ -5,6 +5,22 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/coaching/sessions": {
+      "get": {
+        "summary": "History",
+        "operationId": "history_api_coaching_sessions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/config": {
       "get": {
         "summary": "Config",

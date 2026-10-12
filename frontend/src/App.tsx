@@ -66,6 +66,7 @@ import {
 } from "./api";
 import { acquire, useCapture } from "./capture";
 import { unresolved, reorder } from "./review";
+import LiveCoach from "./LiveCoach";
 
 function usePath() {
   const [path, setPath] = useState(location.pathname);
@@ -1889,6 +1890,12 @@ function LessonView({
         </span>
       </div>
       <div className="lesson-toolbar">
+        <button
+          className="button secondary"
+          onClick={() => navigate(`/coach/${id}/${version.version}`)}
+        >
+          <Mic size={17} /> Practice with live voice
+        </button>
         <button className="button primary" onClick={() => setPracticing(true)}>
           <Play size={17} /> Start guided practice
         </button>
@@ -2064,8 +2071,9 @@ function Setup({ config }: { config: Config }) {
             </div>
           ))}
           <p className="fine">
-            All AI features use Gemini 3.5 Flash-Lite. If it is unavailable,
-            analysis pauses and your saved work stays available.
+            Lesson generation and checkpoint checks use Gemini 3.5 Flash-Lite.
+            Live Coach uses {config.coach_model} for camera and spoken
+            conversation. There is no paid or alternate-model fallback.
           </p>
         </section>
         <section className="panel">
@@ -2085,6 +2093,16 @@ function Setup({ config }: { config: Config }) {
           <div className="connection-row">
             <span>Daily call guard</span>
             <strong>{config.daily_limit}</strong>
+          </div>
+          <div className="connection-row">
+            <span>Live Coach duration</span>
+            <strong>
+              {Math.floor(config.coach_limit_seconds / 60)} minutes
+            </strong>
+          </div>
+          <div className="connection-row">
+            <span>Live Coach token guard</span>
+            <strong>No session token cap</strong>
           </div>
           <div className="connection-row">
             <span>Concurrent live sessions</span>
@@ -2293,9 +2311,11 @@ export default function App() {
   if (!user) return <Login config={config} onLogin={setUser} />;
   const section = path.startsWith("/studio")
     ? "studio"
-    : path === "/settings"
-      ? "settings"
-      : "library";
+    : path.startsWith("/coach")
+      ? "coach"
+      : path === "/settings"
+        ? "settings"
+        : "library";
   const go = (p: string) => {
     setMobileMenu(false);
     navigate(p);
@@ -2306,6 +2326,12 @@ export default function App() {
         <Logo />
         <span className="workspace-label">LEARNING WORKSPACE</span>
         <nav>
+          <button
+            className={section === "coach" ? "active" : ""}
+            onClick={() => go("/coach")}
+          >
+            <Mic size={18} /> Live Coach
+          </button>
           <button
             className={section === "library" ? "active" : ""}
             onClick={() => go("/")}
@@ -2379,9 +2405,11 @@ export default function App() {
             <strong>
               {section === "studio"
                 ? "Demonstration studio"
-                : section === "settings"
-                  ? "Connection & validation"
-                  : "Lesson library"}
+                : section === "coach"
+                  ? "Live Coach"
+                  : section === "settings"
+                    ? "Connection & validation"
+                    : "Lesson library"}
             </strong>
           </span>
           <div>
@@ -2404,7 +2432,14 @@ export default function App() {
           </div>
         </header>
         <main>
-          {path.startsWith("/review/") ? (
+          {path.startsWith("/coach") ? (
+            <LiveCoach
+              key={path}
+              config={config}
+              lessonId={path.split("/")[2]}
+              versionNumber={Number(path.split("/")[3]) || undefined}
+            />
+          ) : path.startsWith("/review/") ? (
             <Review
               id={path.split("/")[2]}
               navigate={navigate}

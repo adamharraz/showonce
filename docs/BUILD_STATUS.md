@@ -1,5 +1,9 @@
 # Implementation status
 
+Latest 12 October update: the requested Relay-style Live Coach uses `gemini-3.8-live` for camera and voice, with video beside the assistant, typing, microphone/voice controls, pause/resume, usage caps and private conversation history. Lesson processing still uses Flash-Lite. This supersedes the earlier single-model policy for the new coaching feature only. Details and limitations are in `LIVE_COACH.md`.
+
+Live Coach validation: existing backend regressions and 13 coaching tests passed; 5 frontend tests and the production build passed. The real app received a locally synthesized spoken question, observed a synthetic camera, transcribed the question and streamed native Gemini speech with no browser errors. The final run counted one reply and saved the conversation after microphone mute/Finish. Actual ESP32 accuracy, an adult pilot and sustained ten-minute quota capacity remain unverified. The main local server is running; the isolated test-only UI server was stopped.
+
 Historical validation record: 8 October 2026. This is an implementation record, not a competition validation result.
 
 Model policy updated on 12 October 2026: all observation, finalization, clarification and assessment calls use `gemini-3.5-flash-lite` only. ER2 streaming and all model fallbacks were removed. Legacy environment overrides cannot change the model, and access/evaluation tools reject other identifiers. The earlier model checks below are historical; Flash-Lite physical-task accuracy still requires validation.

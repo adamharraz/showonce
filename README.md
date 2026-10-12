@@ -4,11 +4,11 @@ One live demonstration becomes a reviewed, reusable lesson. Students then practi
 
 ## Current delivery
 
-Implemented: React/TypeScript capture and review app, FastAPI backend, webcam/screen/phone capture, temporary narration, windowed Gemini 3.5 Flash-Lite analysis, persistent observation ledger, clarification and editing, immutable published versions, practice feedback guards, private evidence, exports, failure recovery, free-tier controls, deployment configuration and evaluation tools.
+Implemented: React/TypeScript capture and review app, FastAPI backend, webcam/screen/phone capture, temporary narration, windowed Gemini 3.5 Flash-Lite analysis, live camera/voice coaching with a side-by-side assistant, persistent observation ledger, clarification and editing, immutable published versions, practice feedback guards, private evidence, exports, failure recovery, free-tier controls, deployment configuration and evaluation tools.
 
 **Real ER2 streaming, standard ER2 and Flash Lite requests passed the local access gate on 8 October 2026.** A real Flash Lite pipeline extracted a tutorial from synthetic before/after screenshots and identified a missing circle in a synthetic student image. This verifies API integration, not ESP32/Sheets accuracy, narration, real-device capture or TRL4. Actual account quotas, hosted deployment and beginner pilots remain unverified. The app never substitutes canned responses for live AI; fake model results exist only in tests.
 
-The local app works without cloud credentials. This workspace has a private Gemini key and its Free-tier guard enabled following the owner's confirmation that paid billing is absent. Clones need their own key and Free-tier confirmation. As of 12 October 2026, every AI operation is pinned to `gemini-3.5-flash-lite` at the owner's request. Other models and automatic model fallbacks are disabled; legacy environment model selectors are ignored. Earlier access-gate results above are historical.
+The local app works without cloud credentials. This workspace has a private Gemini key and its Free-tier guard enabled following the owner's confirmation that paid billing is absent. Clones need their own key and Free-tier confirmation. The latest 12 October request adds an explicit Live Coach using `gemini-3.8-live` for real-time camera/voice conversation. Existing lesson processing stays pinned to `gemini-3.5-flash-lite`. Both identifiers are fixed, and no model fallback is enabled. Earlier ER2 access-gate results above are historical. See `docs/LIVE_COACH.md` for live setup, cost assumptions, limits and validation.
 
 ## Run locally on Windows
 
@@ -39,7 +39,7 @@ Dependencies are already installed in this workspace. Its host Python is 3.13; a
 4. Run one narrated five-minute session in the app. Export its evidence before publication discards unselected frames. Check lost narration, readability, ordering, updates, context and quota use against `docs/VALIDATION.md`.
 5. If Flash-Lite fails the gate, preserve the captured evidence and report the failure. Resolve quota, capacity or accuracy issues with this same model; do not substitute another endpoint. Retry explicitly when the service becomes available. Quota exhaustion stops calls.
 
-The only permitted model:
+Fixed model responsibilities:
 
 | Operation | Model |
 |---|---|
@@ -47,16 +47,19 @@ The only permitted model:
 | Final tutorial and instructor clarification | `gemini-3.5-flash-lite` |
 | Physical and software learner checking | `gemini-3.5-flash-lite` |
 | Access probes and checkpoint evaluation | `gemini-3.5-flash-lite` |
+| Explicit Live Coach camera, conversation and speech | `gemini-3.8-live` |
 
-This restriction applies to local and hosted installations; `/api/config` reports the model. The adapter rejects other model identifiers before sending a request, and evaluation tools reject them at argument parsing. Google GenAI SDK 2.29.0 is pinned for the current Interactions schema and `steps` responses. Structured requests use a compact JSON schema; full Pydantic validation still rejects invalid types, oversized fields and unknown properties. SDK automatic retries are disabled so quota and capacity failures remain explicit.
+This restriction applies to local and hosted installations; `/api/config` reports the model. The structured adapter rejects other lesson models before sending a request, and evaluation tools reject them at argument parsing. The separate Live Coach bridge connects only to its fixed Live model. Google GenAI SDK 2.29.0 is pinned for the current Interactions schema and `steps` responses. Structured requests use a compact JSON schema; full Pydantic validation still rejects invalid types, oversized fields and unknown properties. SDK automatic retries are disabled so quota and capacity failures remain explicit.
 
 Validate Flash-Lite physical assessment on real labelled examples and narrow automatic checks to supported classes. Neither robotics actions nor generated code are executed.
 
 Model-unavailable errors, invalid outputs and connection failures pause analysis and preserve affected frames. Quota errors lock the session's checking. Resume or retry explicitly with Flash-Lite when appropriate; no other model is called. Retry finalization explicitly after a failed job or backend restart. If Flash-Lite cannot produce a usable lesson within free quotas, record the gate as failed.
 
-The daily analysis-operation limit defaults to 120 and allows one active session. It is an extra application limit, **not the account's actual quota and not a token/cost guarantee**. Each model operation makes at most one request, including failed attempts. The Free-tier account restriction is what keeps API cash spending at zero. A quota error blocks subsequent requests for the current UTC day, including after a restart; the next day's guard reset does not guarantee that Google's quota has reset.
+The daily analysis-operation limit defaults to 120 and allows one active session. It is an extra application limit, **not the account's actual quota and not a token/cost guarantee**. Each structured operation makes at most one request, including failed attempts. Live coaching counts connections and replies against the same application guard; this does not equal Google's streaming quota accounting. The Free-tier account restriction is what keeps API cash spending at zero. A quota error blocks subsequent requests for the current UTC day, including after a restart; the next day's guard reset does not guarantee that Google's quota has reset.
 
 ## Using the MVP
+
+- Live Coach: open `/coach`, share a webcam or screen, and talk or type. Native spoken replies and a transcript appear beside the video. Pause/finish stop upstream sharing. From a published lesson, select **Practice with live voice**. Coaching stays advisory; the existing guided practice supplies formal checkpoint outcomes.
 
 - Instructor: choose webcam, phone or screen; consent; start; demonstrate once with natural narration. Provisional observations appear as windows finish. Pause stops media transmission. Finish flushes received evidence and requests a structured tutorial.
 - Review: edit title, materials, steps, ordering, references, checkpoints and clarification answers. Optionally apply those clarifications with AI, then review the revised draft. Required unanswered questions block publication and cannot be removed by AI revision. Hidden/functional properties stay manual. Publish only after review.

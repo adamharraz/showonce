@@ -4,7 +4,7 @@ No result below has been claimed as achieved. Use real sessions and consenting a
 
 ## Access and sustained-capture gate
 
-Run `scripts/probe_models.py` with the verified Free-tier key. Record the actual dashboard quotas for `gemini-3.5-flash-lite`; include date and screenshots with keys/account identifiers redacted. Every operation and evaluation uses this model exclusively. A model listing alone is insufficient.
+Run `scripts/probe_models.py` with the verified Free-tier key. Record the actual dashboard quotas for `gemini-3.5-flash-lite`; include date and screenshots with keys/account identifiers redacted. Lesson processing and formal checkpoint evaluation use this model exclusively. The separate Live Coach uses `gemini-3.8-live` and has its own validation record in `LIVE_COACH.md`. A model listing alone is insufficient.
 
 Then use one five-minute narrated ESP32 demonstration. Record session ID, chosen and actual model IDs, frame gaps, narration losses, provisional-step cadence, context failures, reconnects, finalization latency, usage and remaining quotas. Export the owner-only evidence bundle through the authenticated app/API. Check continuous narration and a pause/resume. Do not claim real-time AI if only capture transport succeeds.
 

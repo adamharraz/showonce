@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parents[1] / '.env')
 
 MODEL = 'gemini-3.5-flash-lite'
+LIVE_MODEL = 'gemini-3.8-live'
 
 @dataclass
 class Settings:
@@ -17,8 +18,11 @@ class Settings:
     supabase_anon: str = field(default_factory=lambda: os.getenv('SUPABASE_ANON_KEY', ''))
     supabase_service: str = field(default_factory=lambda: os.getenv('SUPABASE_SERVICE_ROLE_KEY', ''))
     origin: str = field(default_factory=lambda: os.getenv('APP_ORIGIN', 'http://localhost:8000').rstrip('/'))
-    # Model selection is fixed; legacy environment overrides are ignored.
+    # Lesson processing remains fixed; Live is used only by the explicit coach.
     general_model: str = field(default=MODEL, init=False)
+    coach_model: str = field(default=LIVE_MODEL, init=False)
+    coach_enabled: bool = field(default_factory=lambda: os.getenv('LIVE_COACH_ENABLED', 'true').lower() == 'true')
+    coach_seconds: int = field(default_factory=lambda: min(600, max(30, int(os.getenv('LIVE_COACH_SECONDS', '600')))))
     interval: float = field(default_factory=lambda: max(10., float(os.getenv('ANALYSIS_INTERVAL', '10'))))
     daily_limit: int = field(default_factory=lambda: int(os.getenv('DAILY_ANALYSIS_LIMIT', '120')))
     allow_local_login: bool = field(default_factory=lambda: os.getenv('ALLOW_LOCAL_LOGIN', 'true').lower() == 'true')

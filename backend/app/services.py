@@ -237,6 +237,7 @@ class Runtime:
 class Service:
     def __init__(self, settings, store, ai):
         self.settings, self.store, self.ai = settings, store, ai
+        self.coach = None
         self.runtimes = {}
         self.ai_lock = asyncio.Lock()
         self.session_lock = asyncio.Lock()
@@ -245,8 +246,10 @@ class Service:
         self.usage_lock = asyncio.Lock()
         self.cleanup_task = None
 
-    async def reserve_call(self):
+    async def reserve_call(self, *, live=False):
         async with self.usage_lock:
+            if not live and self.coach and self.coach.active:
+                raise AIError('Finish Live Coach before running another AI operation. Saved work is preserved.', 'session_active')
             await self._reserve_call()
 
     async def block_quota(self):

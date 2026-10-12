@@ -23,6 +23,9 @@ export interface Config {
   daily_limit: number;
   physical_model: string;
   general_model: string;
+  coach_model: string;
+  coach_enabled: boolean;
+  coach_limit_seconds: number;
   app_origin: string;
 }
 export interface User {
