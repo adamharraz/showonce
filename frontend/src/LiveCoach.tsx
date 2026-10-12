@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { api, getToken, type Config, type Version } from "./api";
 import { CoachSpeaker, useCoachMedia } from "./coach-media";
+import ComponentPanel from "./ComponentPanel";
+import { emptyScene, type ComponentScene } from "./components-api";
 
 type State =
   | "idle"
@@ -56,12 +58,18 @@ export default function LiveCoach({
   const [turns, setTurns] = useState(0);
   const [lesson, setLesson] = useState<Version | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [componentScene, setComponentScene] =
+    useState<ComponentScene>(emptyScene);
+  const [inspecting, setInspecting] = useState(false);
+  const [componentNotice, setComponentNotice] = useState("");
   const [history, setHistory] = useState<
     {
       id: string;
       created_at: string;
       goal: string;
       messages: Omit<Message, "partial">[];
+      component_scene?: ComponentScene;
     }[]
   >([]);
   const socket = useRef<WebSocket | null>(null);
@@ -88,7 +96,7 @@ export default function LiveCoach({
   const media = useCoachMedia(
     send,
     state === "capturing",
-    mic,
+    mic && !inspecting,
     () => finishRef.current(),
     (message) => {
       setError(message);
@@ -107,6 +115,7 @@ export default function LiveCoach({
     mediaRef.current.stop();
     speaker.current?.interrupt();
     setState("finished");
+    setInspecting(false);
     setMessages((old) => old.map((m) => ({ ...m, partial: false })));
   };
   finishRef.current = finish;
@@ -156,12 +165,27 @@ export default function LiveCoach({
     });
   }
 
+  useEffect(() => {
+    if (!inspecting) return;
+    const timeout = setTimeout(() => {
+      setInspecting(false);
+      setComponentNotice(
+        "The inspection did not finish within a minute. Try a closer view when the assistant is ready.",
+      );
+    }, 60000);
+    return () => clearTimeout(timeout);
+  }, [inspecting]);
+
   async function start() {
     if (!consent || state === "connecting") return;
     setError("");
     setNotice("");
     setState("connecting");
     setMessages([]);
+    setSessionId(null);
+    setComponentScene(emptyScene());
+    setComponentNotice("");
+    setInspecting(false);
     setFrames(0);
     setTurns(0);
     setStepIndex(0);
@@ -239,6 +263,7 @@ export default function LiveCoach({
         const message = JSON.parse(event.data);
         switch (message.type) {
           case "ready":
+            setSessionId(message.id);
             started.current =
               Date.now() -
               (message.limit_seconds - message.remaining_seconds) * 1000;
@@ -246,6 +271,7 @@ export default function LiveCoach({
             setNotice("Connected. Show your workspace and ask a question.");
             break;
           case "status":
+            setInspecting(false);
             setState(
               message.state === "connecting" && started.current
                 ? "reconnecting"
@@ -279,9 +305,28 @@ export default function LiveCoach({
             break;
           case "turn_complete":
             setTurns(message.turns);
+            setInspecting(false);
             break;
           case "frame_seen":
             setFrames((old) => old + 1);
+            break;
+          case "component_inspecting":
+            setInspecting(true);
+            setComponentNotice(
+              "Inspecting one camera snapshot. Microphone sharing resumes when the reply finishes.",
+            );
+            break;
+          case "component_scene":
+            setComponentScene(message.scene);
+            setComponentNotice(
+              message.scene.components.length
+                ? "Reference models loaded. Review suggested identities and unresolved details."
+                : "No supported components were identified in this snapshot.",
+            );
+            break;
+          case "component_notice":
+            setInspecting(false);
+            setComponentNotice(message.message);
             break;
           case "error":
             setError(message.message);
@@ -554,6 +599,24 @@ export default function LiveCoach({
               </p>
             </section>
           )}
+          <ComponentPanel
+            scene={componentScene}
+            sessionId={sessionId}
+            ready={ready && frames > 0}
+            inspecting={inspecting}
+            notice={componentNotice}
+            inspect={() => {
+              media.snapshot();
+              send({ type: "inspect_components" });
+            }}
+            onChange={(scene) => {
+              setComponentScene(scene);
+              setInspecting(false);
+              setComponentNotice(
+                "Your correction is saved. The next question will include it for the assistant.",
+              );
+            }}
+          />
           {!running && (
             <details
               className="panel coach-history"
@@ -574,6 +637,11 @@ export default function LiveCoach({
                   key={record.id}
                   className="text-button"
                   onClick={() => {
+                    setSessionId(record.id);
+                    setComponentScene(record.component_scene || emptyScene());
+                    setComponentNotice(
+                      "Saved reference inventory. Start a new session to inspect a fresh view.",
+                    );
                     setMessages(
                       record.messages.map((message) => ({
                         ...message,

@@ -14,6 +14,7 @@ from .ai import AIError, Gemini
 from .config import LIVE_MODEL
 from .models import Strict, uid
 from .services import now
+from .components import Catalogue, ComponentScene, InspectionOutput, PartEdit, ScenePart, TOOL, catalogue_context, edit_part
 
 COACH_PROMPT = '''You are ShowOnce, a calm practical teaching assistant in a live workspace.
 Help the person understand and perform the activity they ask about. Use short, natural
@@ -30,6 +31,15 @@ When an approved lesson is supplied, guide its current step and respect manual c
 Only the learner chooses another step. Do not silently advance. Do not repeatedly narrate
 every camera frame. Respond when asked or when a clear, relevant visible issue warrants it.
 Use English unless asked to speak another language. Use a friendly tone without filler.'''
+COACH_PROMPT += '''\nThe component catalogue contains reference assets, not a task checklist.
+When a user requests a numbered snapshot inspection, call show_components with that
+exact frame_id. Inspect that snapshot, not a presumed lesson or goal. List each visible
+object separately (up to 12); mark uncertain identifications, include unknown objects,
+and ask for unreadable labels. Do not make up values, colour bands or exact board
+variants. Tool results are reference illustrations arranged for clarity, not a digital
+twin, circuit simulator, photo reconstruction or proof of electrical connections.
+Do not call show_components without a requested snapshot. A user-confirmed board
+variant enables its reference pin labels; it does not prove the camera's wiring.'''
 
 class CoachHello(Strict):
     type: Literal['authenticate']
@@ -56,6 +66,7 @@ class LiveBridge:
                 trigger_tokens=16000, sliding_window=types.SlidingWindow(target_tokens=8000)),
             session_resumption=types.SessionResumptionConfig(handle=handle),
             max_output_tokens=1024,
+            tools=[types.Tool(function_declarations=[types.FunctionDeclaration(**TOOL)])],
         )
         self.context = self.ai.client.aio.live.connect(model=LIVE_MODEL, config=config)
         self.session = await asyncio.wait_for(self.context.__aenter__(), 15)
@@ -67,6 +78,14 @@ class LiveBridge:
             await self.session.send_realtime_input(audio=types.Blob(data=value, mime_type='audio/pcm;rate=16000'))
         elif kind == 'audio_end':
             await self.session.send_realtime_input(audio_stream_end=True)
+        elif kind == 'tool_response':
+            await self.session.send_tool_response(function_responses=value)
+        elif kind == 'inspect':
+            # Bind the still image and its frame ID in one ordered user turn.
+            # Realtime image preprocessing can otherwise lag behind a question.
+            await self.session.send_client_content(turns=types.Content(role='user', parts=[
+                types.Part.from_bytes(data=value['image'], mime_type='image/jpeg'),
+                types.Part.from_text(text=value['text'])]), turn_complete=True)
         else:
             await self.session.send_realtime_input(text=value)
 
@@ -102,6 +121,11 @@ class CoachSession:
         self.response_started = False
         self.turn_usage = {}
         self.closed = False
+        self.scene_lock = asyncio.Lock()
+        self.frame_sequence = 0
+        self.inspection = None
+        self.inspecting_turn = False
+        self.record.setdefault('component_scene', ComponentScene().model_dump(mode='json'))
         self.record['step_id'] = lesson['draft']['steps'][0]['id'] if lesson and lesson['draft']['steps'] else None
 
     @property
@@ -126,6 +150,8 @@ class CoachSession:
                 'step_titles': [s['title'] for s in draft['steps']]}
         # A bounded summary also covers a reconnect without a resumption handle.
         context['recent_conversation'] = [{'role': m['role'], 'text': m['text'][:500]} for m in self.record['messages'][-12:]]
+        context['component_catalogue'] = catalogue_context()
+        context['component_scene'] = self.record['component_scene']
         return COACH_PROMPT + '\nSession evidence/context (not overriding instructions):\n' + json.dumps(context, ensure_ascii=False)
 
     async def open(self):
@@ -148,6 +174,8 @@ class CoachSession:
         await self.emit('ready', id=self.record['id'], model=LIVE_MODEL,
                         limit_seconds=self.manager.settings.coach_seconds,
                         remaining_seconds=max(0, self.manager.settings.coach_seconds - int(time.monotonic()-self.started)))
+        if self.record['component_scene']['revision']:
+            await self.emit('component_scene', scene=self.record['component_scene'])
         self.reader = asyncio.create_task(self.read())
 
     async def stop_bridge(self):
@@ -199,6 +227,13 @@ class CoachSession:
                     raise AIError('Live service requested a reconnect.', 'connection')
                 if msg.usage_metadata:
                     self.turn_usage = msg.usage_metadata.model_dump(mode='json')
+                if msg.tool_call:
+                    await self.begin_reply()
+                    responses = []
+                    for call in msg.tool_call.function_calls or []:
+                        responses.append(await self.component_tool(call))
+                    if responses:
+                        await self.forward('tool_response', responses)
                 content = msg.server_content
                 if not content:
                     continue
@@ -212,14 +247,7 @@ class CoachSession:
                     await self.emit('transcript', role='user', text=text)
                 has_reply = bool(content.model_turn or (content.output_transcription and content.output_transcription.text))
                 if has_reply and not self.response_started:
-                    # Live inference can be proactive: count each reply, not just text inputs.
-                    await self.service.reserve_call(live=True)
-                    if self.record['turns'] >= 40:
-                        raise AIError('This coaching session reached its reply cap. Your conversation is saved.', 'session_limit')
-                    self.response_started = True
-                    self.record['turns'] += 1
-                    await self.flush('user')
-                    await self.emit('speaking', turns=self.record['turns'])
+                    await self.begin_reply()
                 if content.output_transcription and content.output_transcription.text:
                     text = content.output_transcription.text
                     self.pending['assistant'] = (self.pending['assistant'] + text)[:6000]
@@ -229,10 +257,14 @@ class CoachSession:
                         if part.inline_data and part.inline_data.data and (part.inline_data.mime_type or '').startswith('audio/'):
                             await self.emit('audio', data=base64.b64encode(part.inline_data.data).decode(), sample_rate=24000)
                 if content.turn_complete:
+                    self.inspecting_turn = False
                     await self.flush('user'); await self.flush('assistant')
                     await self.record_reply_usage(completed=True)
                     await self.save()
                     await self.emit('turn_complete', turns=self.record['turns'], charged_tokens=self.record['charged_tokens'])
+                    if self.inspection:
+                        self.inspection = None
+                        await self.emit('component_notice', message='No component result was accepted for this inspection. Try a clearer view or ask again.')
                     if self.record['turns'] >= 40:
                         raise AIError('This coaching session reached its reply cap. Your conversation is saved; start another session when appropriate.', 'session_limit')
         except asyncio.CancelledError:
@@ -241,6 +273,8 @@ class CoachSession:
             error = exc if isinstance(exc, AIError) else Gemini.classify(exc)
             if error.code == 'connection' and not self.record['reconnects'] and not self.closed:
                 self.record['reconnects'] += 1
+                self.inspection = None
+                self.inspecting_turn = False
                 await self.emit('interrupted')
                 await self.flush('user'); await self.flush('assistant')
                 await self.record_reply_usage(completed=False)
@@ -252,10 +286,60 @@ class CoachSession:
                     exc = retry_error
             await self.fail(exc)
 
+    async def begin_reply(self):
+        # Count tool-only replies too; they also consume inference quota.
+        if self.response_started:
+            return
+        await self.service.reserve_call(live=True)
+        if self.record['turns'] >= 40:
+            raise AIError('This coaching session reached its reply cap. Your conversation is saved.', 'session_limit')
+        self.response_started = True
+        self.record['turns'] += 1
+        await self.flush('user')
+        await self.emit('speaking', turns=self.record['turns'])
+
     async def forward(self, kind, value):
         async with self.send_lock:
             if self.bridge and self.record['state'] == 'capturing':
                 await self.bridge.send(kind, value)
+
+    async def component_tool(self, call):
+        """Tool arguments are untrusted. A failed/stale call cannot alter the scene."""
+        try:
+            if call.name != 'show_components':
+                raise ValueError('Unsupported tool')
+            output = InspectionOutput.model_validate(call.args)
+            async with self.scene_lock:
+                inspection = self.inspection
+                if not inspection or time.monotonic() - inspection['requested_at'] > 60:
+                    raise ValueError('Request a fresh snapshot inspection first')
+                if output.frame_id != inspection['frame_id']:
+                    raise ValueError('The result refers to another snapshot')
+                if self.record['component_scene']['revision'] != inspection['revision']:
+                    raise ValueError('A manual correction superseded this inspection')
+                scene = ComponentScene(revision=inspection['revision']+1, frame_id=output.frame_id,
+                    timestamp_ms=inspection['timestamp_ms'],
+                    components=[ScenePart(**p.model_dump()) for p in output.components], questions=output.questions)
+                self.record['component_scene'] = scene.model_dump(mode='json')
+                self.inspection = None
+                await self.save()
+                await self.emit('component_scene', scene=self.record['component_scene'])
+            return types.FunctionResponse(id=call.id, name=call.name, response={'accepted': True,
+                'reference_only': True, 'revision': scene.revision, 'component_count': len(scene.components)})
+        except ValueError as exc:
+            # Never echo malformed arguments or raw imagery into logs/the UI.
+            await self.emit('component_notice', message='A component result could not be accepted. Your previous references are preserved.')
+            return types.FunctionResponse(id=call.id, name=call.name, response={'accepted': False, 'error': str(exc)[:300]})
+
+    async def correct_components(self, edit):
+        async with self.scene_lock:
+            scene = edit_part(ComponentScene.model_validate(self.record['component_scene']), edit)
+            self.record['component_scene'] = scene.model_dump(mode='json')
+            self.inspection = None
+            await self.save()
+            await self.emit('component_scene', scene=self.record['component_scene'])
+        # Include corrections on reconnect; no extra inference request is sent.
+        return scene
 
     async def message(self, msg):
         kind = msg.get('type')
@@ -267,6 +351,8 @@ class CoachSession:
                 return False
             if action == 'pause' and self.record['state'] == 'capturing':
                 self.record['state'] = 'paused'
+                self.inspection = None
+                self.inspecting_turn = False
                 await self.stop_bridge()
                 await self.record_reply_usage(completed=False)
                 await self.emit('interrupted')
@@ -296,9 +382,34 @@ class CoachSession:
                 output = io.BytesIO(); image.save(output, format='JPEG', quality=75)
             self.latest_frame = output.getvalue()
             self.last_frame = clock
-            await self.forward('frame', self.latest_frame)
+            self.frame_sequence += 1
+            # Keep the requested upstream snapshot fixed during its inspection.
+            # New frames still refresh the in-memory camera; the stream resumes
+            # after the inspection result/turn ends.
+            if not self.inspecting_turn:
+                await self.forward('frame', self.latest_frame)
             await self.emit('frame_seen')
+        elif kind == 'inspect_components':
+            if self.response_started or self.inspecting_turn:
+                await self.emit('component_notice', message='Wait for the current assistant reply before inspecting another snapshot.'); return
+            if not self.latest_frame or clock-self.last_frame > 8:
+                await self.emit('component_notice', message='Share a fresh camera view before identifying components.'); return
+            if self.inspection and clock-self.inspection['requested_at'] < 60:
+                await self.emit('component_notice', message='An inspection is already in progress.'); return
+            self.inspection = {'frame_id': f'frame-{self.frame_sequence}',
+                'timestamp_ms': round((self.last_frame-self.started)*1000), 'requested_at': clock,
+                'revision': self.record['component_scene']['revision']}
+            inspection = self.inspection
+            self.inspecting_turn = True
+            await self.emit('component_inspecting')
+            if self.last_audio:
+                await self.forward('audio_end', None)
+            await self.forward('inspect', {'image': self.latest_frame, 'text':
+                'Inspect the image attached to this turn, frame_id '+inspection['frame_id']+
+                '. Call show_components to display only its visibly supported components, and flag uncertainty. Keep evidence to one short sentence per part. Do not infer wiring, values or a task from the goal.'})
         elif kind == 'audio':
+            if self.inspecting_turn:
+                return
             raw = base64.b64decode(msg.get('data', ''), validate=True)
             if not raw or len(raw) % 2 or len(raw) > 6400:
                 raise ValueError('Audio must be mono 16kHz PCM in chunks up to 200ms')
@@ -310,6 +421,8 @@ class CoachSession:
             self.last_audio = clock
             await self.forward('audio', raw)
         elif kind == 'text':
+            if self.inspecting_turn:
+                await self.emit('component_notice', message='Let the snapshot inspection finish before sending another question.'); return
             text = msg.get('text')
             if not isinstance(text, str) or not text.strip() or len(text) > 2000:
                 raise ValueError('Enter a message up to 2000 characters')
@@ -320,7 +433,8 @@ class CoachSession:
             await self.emit('text_sent', text=text)
             # Give a just-arrived live frame time to enter the vision context.
             await asyncio.sleep(max(0, .4 - (time.monotonic()-self.last_frame)))
-            await self.forward('text', text)
+            context = self.record['component_scene']
+            await self.forward('text', text + ('\nCurrent reference inventory (including explicit user corrections; not verified wiring): '+json.dumps(context) if context['revision'] else ''))
         elif kind == 'microphone':
             if not isinstance(msg.get('enabled'), bool):
                 raise ValueError('Invalid microphone control')
@@ -352,6 +466,7 @@ class CoachManager:
         self.settings, self.service, self.auth = settings, service, auth
         self.bridge_factory, self.active = bridge_factory, None
         self.retention_task = None
+        self.component_edit_lock = asyncio.Lock()
 
     async def cleanup(self):
         cutoff = datetime.now(timezone.utc) - timedelta(days=7)
@@ -462,3 +577,34 @@ class CoachManager:
         async def history(current=Depends(user)):
             await self.cleanup()
             return sorted([r for r in await self.service.store.all('coach_session') if r['owner_id'] == current.id], key=lambda r: r['created_at'], reverse=True)[:10]
+
+        @app.get('/api/components/catalogue', response_model=Catalogue)
+        async def catalogue(current=Depends(user)):
+            return Catalogue()
+
+        @app.get('/api/coaching/sessions/{id}/components', response_model=ComponentScene)
+        async def component_scene(id: str, current=Depends(user)):
+            record = await owned(id, current)
+            return ComponentScene.model_validate(record.get('component_scene', {}))
+
+        async def owned(id, current):
+            record = await self.service.store.get('coach_session', id)
+            if not record:
+                raise HTTPException(404, 'Conversation not found')
+            if record['owner_id'] != current.id:
+                raise HTTPException(403, 'This conversation belongs to another account')
+            return record
+
+        @app.patch('/api/coaching/sessions/{id}/components', response_model=ComponentScene)
+        async def correct(id: str, body: PartEdit, current=Depends(user)):
+            async with self.component_edit_lock:
+                record = await owned(id, current)
+                try:
+                    if self.active and self.active.record['id'] == id:
+                        return await self.active.correct_components(body)
+                    scene = edit_part(ComponentScene.model_validate(record.get('component_scene', {})), body)
+                    record['component_scene'] = scene.model_dump(mode='json')
+                    await self.service.store.put('coach_session', record)
+                    return scene
+                except ValueError as exc:
+                    raise HTTPException(409, str(exc))

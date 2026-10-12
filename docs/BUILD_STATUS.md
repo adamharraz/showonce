@@ -1,5 +1,9 @@
 # Implementation status
 
+13 October: implemented the local five-family 3D component catalogue with Gemini Live snapshot/tool recognition, owner-only versioned corrections, explicit unknown values/variants and reference pin highlighting after board confirmation. Real Live integration on a synthetic drawing returned an LED and uncertain resistor with no invented value. Physical recognition remains unvalidated; details are in `COMPONENT_LIBRARY.md`.
+
+Current automated validation: **67 backend tests**, **5 frontend tests**, regenerated API contracts and production build passed. Component UI checks passed with a synthetic camera and isolated fixture, including 3D rendering, pinout withholding, manual corrections and mobile layout. The real Live snapshot gate passed with one completed reply reporting 2,100 tokens. Services remain free-tier guarded; no new hosting or billing was configured.
+
 Latest 12 October update: the requested Relay-style Live Coach uses `gemini-3.8-live` for camera and voice, with video beside the assistant, typing, microphone/voice controls, pause/resume, usage caps and private conversation history. Lesson processing still uses Flash-Lite. This supersedes the earlier single-model policy for the new coaching feature only. Details and limitations are in `LIVE_COACH.md`.
 
 Live Coach validation: existing backend regressions and 13 coaching tests passed; 5 frontend tests and the production build passed. The real app received a locally synthesized spoken question, observed a synthetic camera, transcribed the question and streamed native Gemini speech with no browser errors. The final run counted one reply and saved the conversation after microphone mute/Finish. Actual ESP32 accuracy, an adult pilot and sustained ten-minute quota capacity remain unverified. The main local server is running; the isolated test-only UI server was stopped.

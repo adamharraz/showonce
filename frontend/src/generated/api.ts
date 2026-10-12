@@ -21,6 +21,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/components/catalogue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Catalogue */
+        get: operations["catalogue_api_components_catalogue_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/coaching/sessions/{id}/components": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Component Scene */
+        get: operations["component_scene_api_coaching_sessions__id__components_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Correct */
+        patch: operations["correct_api_coaching_sessions__id__components_patch"];
+        trace?: never;
+    };
     "/api/config": {
         parameters: {
             query?: never;
@@ -392,6 +427,32 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** Catalogue */
+        Catalogue: {
+            /**
+             * Version
+             * @default 1
+             */
+            version: string;
+            /** Parts */
+            parts?: components["schemas"]["Part"][];
+        };
+        /** ComponentScene */
+        ComponentScene: {
+            /**
+             * Revision
+             * @default 0
+             */
+            revision: number;
+            /** Frame Id */
+            frame_id?: string | null;
+            /** Timestamp Ms */
+            timestamp_ms?: number | null;
+            /** Components */
+            components?: components["schemas"]["ScenePart"][];
+            /** Questions */
+            questions?: string[];
+        };
         /** CreateSession */
         CreateSession: {
             /**
@@ -547,6 +608,53 @@ export interface components {
             /** Session Id */
             session_id: string;
         };
+        /** Part */
+        Part: {
+            /**
+             * Id
+             * @enum {string}
+             */
+            id: "esp32" | "breadboard" | "led" | "resistor" | "wire" | "unknown";
+            /** Name */
+            name: string;
+            /** Description */
+            description: string;
+            /** Asset */
+            asset: string;
+            /** Limitations */
+            limitations: string;
+            /** Variants */
+            variants?: components["schemas"]["Variant"][];
+        };
+        /** PartEdit */
+        PartEdit: {
+            /** Revision */
+            revision: number;
+            /** Component Id */
+            component_id: string;
+            /**
+             * Part Id
+             * @enum {string}
+             */
+            part_id: "esp32" | "breadboard" | "led" | "resistor" | "wire" | "unknown";
+            /** Variant Id */
+            variant_id?: string | null;
+            /** Value Text */
+            value_text?: string | null;
+            /** Note */
+            note: string;
+        };
+        /** Pin */
+        Pin: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** X */
+            x: number;
+            /** Z */
+            z: number;
+        };
         /** Question */
         Question: {
             /** Id */
@@ -563,6 +671,41 @@ export interface components {
              * @default
              */
             answer: string;
+        };
+        /** ScenePart */
+        ScenePart: {
+            /** Id */
+            id: string;
+            /**
+             * Part Id
+             * @enum {string}
+             */
+            part_id: "esp32" | "breadboard" | "led" | "resistor" | "wire" | "unknown";
+            /** Evidence */
+            evidence: string;
+            /**
+             * Uncertain
+             * @default true
+             */
+            uncertain: boolean;
+            /** Value Text */
+            value_text?: string | null;
+            /** Value Source */
+            value_source?: ("visible" | "narrated" | "user-confirmed") | null;
+            /** Variant Id */
+            variant_id?: string | null;
+            /**
+             * Confirmed
+             * @default false
+             */
+            confirmed: boolean;
+            /**
+             * Confirmation Note
+             * @default
+             */
+            confirmation_note: string;
+            /** Highlighted Pin */
+            highlighted_pin?: string | null;
         };
         /** SessionDetail */
         SessionDetail: {
@@ -679,6 +822,19 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
+        /** Variant */
+        Variant: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description: string;
+            /** Pins */
+            pins: components["schemas"]["Pin"][];
+            /** Source */
+            source: string;
+        };
         /** VersionRecord */
         VersionRecord: {
             /** Id */
@@ -782,6 +938,92 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    catalogue_api_components_catalogue_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Catalogue"];
+                };
+            };
+        };
+    };
+    component_scene_api_coaching_sessions__id__components_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComponentScene"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    correct_api_coaching_sessions__id__components_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PartEdit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComponentScene"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

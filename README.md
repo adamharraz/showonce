@@ -4,6 +4,8 @@ One live demonstration becomes a reviewed, reusable lesson. Students then practi
 
 ## Current delivery
 
+13 October update: Live Coach now includes a five-family component catalogue and interactive 3D reference models, grounded live snapshot inspection, manual corrections and confirmed-variant pin highlighting. The 200,000-token coaching cap has been removed; usage is still logged. See [component library](docs/COMPONENT_LIBRARY.md) for operation and validation limits.
+
 Implemented: React/TypeScript capture and review app, FastAPI backend, webcam/screen/phone capture, temporary narration, windowed Gemini 3.5 Flash-Lite analysis, live camera/voice coaching with a side-by-side assistant, persistent observation ledger, clarification and editing, immutable published versions, practice feedback guards, private evidence, exports, failure recovery, free-tier controls, deployment configuration and evaluation tools.
 
 **Real ER2 streaming, standard ER2 and Flash Lite requests passed the local access gate on 8 October 2026.** A real Flash Lite pipeline extracted a tutorial from synthetic before/after screenshots and identified a missing circle in a synthetic student image. This verifies API integration, not ESP32/Sheets accuracy, narration, real-device capture or TRL4. Actual account quotas, hosted deployment and beginner pilots remain unverified. The app never substitutes canned responses for live AI; fake model results exist only in tests.
