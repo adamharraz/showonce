@@ -7,7 +7,7 @@ import logging
 import time
 from PIL import Image, ImageOps
 from fastapi import HTTPException
-from .ai import AIError, ER2Stream
+from .ai import AIError
 from .models import uid, ObservationBatch, LessonDraft, AssessmentOutput
 
 log = logging.getLogger('showonce')
@@ -63,10 +63,8 @@ class Runtime:
         self.finish_lock = asyncio.Lock()
         self.storage_lock = asyncio.Lock()
         self.last_frame = 0.
-        self.stream = None
         self.stopped = False
         self.last_media = time.monotonic()
-        self.live_reconnects = 0
         self.task = asyncio.create_task(self.loop())
 
     async def emit(self, type, **data):
@@ -116,23 +114,6 @@ class Runtime:
             await self.save()
             await self.emit('status', session=self.session)
             return
-        if self.stream:
-            try:
-                await self.stream.frame(self.frames[-1])
-            except Exception as exc:
-                # Let the serialized analysis path reconnect. Closing a live
-                # stream here could cancel an observation already in flight.
-                failure = exc if isinstance(exc, AIError) else self.service.ai.classify(exc)
-                self.stream.error = failure
-                self.stream.done.set()
-                if failure.code == 'quota':
-                    await self.service.block_quota()
-                    self.session['state'] = 'quota_paused'
-                    self.session['quota_date'] = datetime.now(timezone.utc).date().isoformat()
-                    self.session['last_error'] = {'code': 'quota', 'message': str(failure)}
-                    await self.save(); await self.emit('status', session=self.session)
-                else:
-                    await self.emit('notice', message='Live observation disconnected. Received frames are saved; recovery will run at the next analysis window.')
         await self.emit('frame_saved', frame={k: v for k, v in frame.items() if k != 'key'})
 
     @property
@@ -146,62 +127,8 @@ class Runtime:
     async def save(self):
         await self.service.store.put('session', self.session)
 
-    async def drop_stream(self, exc):
-        stream, self.stream = self.stream, None
-        if stream:
-            await stream.close()
-        if getattr(exc, 'code', '') == 'quota':
-            await self.service.block_quota()
-            self.session['state'] = 'quota_paused'
-            self.session['quota_date'] = datetime.now(timezone.utc).date().isoformat()
-            self.session['last_error'] = {'code': 'quota', 'message': str(exc)}
-            await self.save()
-            await self.emit('status', session=self.session)
-            return
-        if getattr(exc, 'code', '') == 'connection' and self.live_reconnects == 0:
-            self.live_reconnects += 1
-            resumed = ER2Stream(self.service.ai)
-            resumed.handle = stream.handle if stream else None
-            try:
-                await resumed.open()
-                self.stream = resumed
-                await self.emit('notice', message='ER2 reconnected once. The observation ledger and received images are preserved.')
-                return
-            except AIError as retry_error:
-                await resumed.close()
-                if retry_error.code == 'quota':
-                    await self.service.block_quota()
-                    self.session['state'] = 'quota_paused'
-                    self.session['quota_date'] = datetime.now(timezone.utc).date().isoformat()
-                    self.session['last_error'] = {'code': 'quota', 'message': str(retry_error)}
-                    await self.save(); await self.emit('status', session=self.session)
-                    return
-        self.session['model'] = self.service.settings.general_model
-        await self.emit('notice', message='ER2 live observation is unavailable. Continuing with window-based Gemini analysis of the same demonstration.')
-        await self.save()
-
-    async def setup_stream(self):
-        if self.session['mode'] != 'teach' or self.session['source'] == 'screen' or self.service.settings.physical_observer != 'er2':
-            return
-        try:
-            self.stream = ER2Stream(self.service.ai)
-            await self.stream.open()
-        except AIError as exc:
-            if exc.code in ('quota', 'budget_guard', 'not_configured'):
-                self.stream = None
-                if exc.code == 'quota':
-                    await self.service.block_quota()
-                    self.session['state'] = 'quota_paused'
-                    self.session['quota_date'] = datetime.now(timezone.utc).date().isoformat()
-                    self.session['last_error'] = {'code': 'quota', 'message': str(exc)}
-                    await self.save(); await self.emit('status', session=self.session)
-                await self.emit('notice', message=str(exc))
-            else:
-                await self.drop_stream(exc)
-
     async def loop(self):
         try:
-            await self.setup_stream()
             next_update = time.monotonic() + self.service.settings.interval
             while not self.stopped:
                 await asyncio.sleep(max(0, next_update - time.monotonic()))
@@ -234,20 +161,7 @@ class Runtime:
                     await self.service.reserve_call()
                     if self.session['mode'] == 'teach':
                         ledger = await self.service.observations(self.session['id'])
-                        if self.stream:
-                            try:
-                                result = await self.stream.observe(ledger, batch, pcm)
-                            except AIError as exc:
-                                if exc.code == 'quota':
-                                    raise
-                                await self.drop_stream(exc)
-                                if self.session['state'] == 'quota_paused':
-                                    raise AIError('Free quota exhausted; AI calls stopped.', 'quota')
-                                # Flash recovers the affected saved window. A resumed stream
-                                # receives future frames at 1 FPS instead of a replay burst.
-                                result = await self.service.ai.observe(ledger, batch, pcm)
-                        else:
-                            result = await self.service.ai.observe(ledger, batch, pcm)
+                        result = await self.service.ai.observe(ledger, batch, pcm)
                         await self.service.accept_observations(self.session, result, batch)
                         await self.emit('observations', observations=await self.service.observations(self.session['id']))
                     else:
@@ -310,9 +224,6 @@ class Runtime:
         if self.frames and self.session['state'] not in ('quota_paused', 'interrupted'):
             await self.analyze()
         self.stopped = True
-        if self.stream:
-            await self.stream.close()
-            self.stream = None
         self.session['state'] = 'finished'
         if self.frames:
             self.session['gaps'].append({'timestamp_ms': self.frames[0]['timestamp_ms'], 'reason': 'Some captured evidence was not analyzed. Review missing actions before publication.'})
@@ -490,6 +401,3 @@ class Service:
             task.cancel()
         tasks = [r.task for r in self.runtimes.values()] + list(self.jobs) + ([self.cleanup_task] if self.cleanup_task else [])
         await asyncio.gather(*tasks, return_exceptions=True)
-        for runtime in self.runtimes.values():
-            if runtime.stream:
-                await runtime.stream.close()

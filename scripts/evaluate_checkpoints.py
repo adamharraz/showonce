@@ -10,7 +10,7 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend'))
 from PIL import Image, ImageOps
 from app.ai import Gemini, AIError, ASSESSOR
-from app.config import Settings
+from app.config import MODEL, Settings
 from app.models import Step, AssessmentOutput
 from app.services import Service, guard_assessment
 from app.storage import Store
@@ -38,7 +38,7 @@ def summarize(rows):
     return {'models': groups, 'recommended_model': selected, 'selection_valid': comparable, 'note': 'Request latency excludes capture scheduling and queue time. Validate stable-outcome-to-visible-feedback timing in the live app.'}
 
 async def main():
-    p=argparse.ArgumentParser(); p.add_argument('dataset'); p.add_argument('--models', nargs='+', default=['gemini-robotics-er-2-preview','gemini-3.8-flash']); p.add_argument('--output', default='artifacts/checkpoints.json'); args=p.parse_args()
+    p=argparse.ArgumentParser(); p.add_argument('dataset'); p.add_argument('--models', nargs='+', choices=[MODEL], default=[MODEL]); p.add_argument('--output', default='artifacts/checkpoints.json'); args=p.parse_args()
     dataset=Path(args.dataset).resolve()
     cases=[json.loads(line) for line in dataset.read_text(encoding='utf-8').splitlines() if line.strip()]
     if not cases or any(c['label'] not in ('correct','incorrect','unclear') for c in cases): raise SystemExit('Every example needs an id, approved step, images and a valid label.')
@@ -48,7 +48,7 @@ async def main():
     except AIError as exc: raise SystemExit(str(exc))
     store=Store(settings); service=Service(settings,store,ai); rows=[]; stop=False
     try:
-        for model in args.models:
+        for model in dict.fromkeys(args.models):
             if stop: break
             for c in cases:
                 step=Step.model_validate(c['step']).model_dump()

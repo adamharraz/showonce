@@ -59,7 +59,7 @@ def create_app(settings=None, ai=None):
 
     @app.get('/api/config')
     async def config():
-        return {'local_login': settings.storage_mode == 'local' and settings.allow_local_login, 'storage_mode': settings.storage_mode, 'ai_configured': bool(settings.gemini_key), 'free_tier_confirmed': settings.free_tier_confirmed, 'supabase_url': settings.supabase_url, 'supabase_anon_key': settings.supabase_anon, 'analysis_interval': settings.interval, 'daily_limit': settings.daily_limit, 'physical_model': 'gemini-robotics-er-2-streaming-preview' if settings.physical_observer == 'er2' else settings.general_model, 'general_model': settings.general_model, 'app_origin': settings.origin}
+        return {'local_login': settings.storage_mode == 'local' and settings.allow_local_login, 'storage_mode': settings.storage_mode, 'ai_configured': bool(settings.gemini_key), 'free_tier_confirmed': settings.free_tier_confirmed, 'supabase_url': settings.supabase_url, 'supabase_anon_key': settings.supabase_anon, 'analysis_interval': settings.interval, 'daily_limit': settings.daily_limit, 'physical_model': settings.general_model, 'general_model': settings.general_model, 'app_origin': settings.origin}
 
     @app.get('/api/health')
     async def health():
@@ -112,7 +112,7 @@ def create_app(settings=None, ai=None):
                 if not version:
                     raise HTTPException(404, 'Published lesson version not found')
             id = uid()
-            session = {'id': id, 'owner_id': current.id, 'mode': body.mode, 'source': body.source, 'state': 'capturing', 'created_at': now(), 'last_analysis_at': None, 'last_error': None, 'title': 'Untitled demonstration' if not version else version['draft']['title'], 'lesson_id': uid() if not version else body.lesson_id, 'version_id': version['id'] if version else None, 'step_id': version['draft']['steps'][0]['id'] if version else None, 'gaps': [], 'published': False, 'model': settings.general_model if body.source == 'screen' else ('gemini-robotics-er-2-streaming-preview' if body.mode == 'teach' and settings.physical_observer == 'er2' else settings.physical_assessor)}
+            session = {'id': id, 'owner_id': current.id, 'mode': body.mode, 'source': body.source, 'state': 'capturing', 'created_at': now(), 'last_analysis_at': None, 'last_error': None, 'title': 'Untitled demonstration' if not version else version['draft']['title'], 'lesson_id': uid() if not version else body.lesson_id, 'version_id': version['id'] if version else None, 'step_id': version['draft']['steps'][0]['id'] if version else None, 'gaps': [], 'published': False, 'model': settings.general_model}
             await store.put('session', session)
             service.runtimes[id] = Runtime(session, service)
         return session

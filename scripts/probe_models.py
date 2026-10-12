@@ -8,8 +8,8 @@ import sys
 import time
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend'))
 from PIL import Image
-from app.ai import Gemini, AIError, ER2Stream, OBSERVER
-from app.config import Settings
+from app.ai import Gemini, AIError, OBSERVER
+from app.config import MODEL, Settings
 from app.models import ObservationBatch
 from app.services import Service
 from app.storage import Store
@@ -17,8 +17,7 @@ from app.storage import Store
 async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output', default='artifacts/model-access.json')
-    parser.add_argument('--models', nargs='+', help='Probe only these model identifiers.')
-    parser.add_argument('--skip-stream', action='store_true', help='Skip an already-verified live endpoint.')
+    parser.add_argument('--models', nargs='+', choices=[MODEL], default=[MODEL], help='Only Gemini 3.5 Flash-Lite is permitted.')
     args = parser.parse_args()
     settings = Settings(); ai = Gemini(settings)
     try: ai.ready()
@@ -28,7 +27,7 @@ async def main():
     b = io.BytesIO(); Image.new('RGB', (160, 120), '#dddddd').save(b, format='JPEG')
     frames = [{'id': 'access-probe-frame', 'timestamp_ms': 1000, 'bytes': b.getvalue()}]
     try:
-        for model in dict.fromkeys(args.models or [settings.general_model, settings.physical_assessor, settings.fallback_model]):
+        for model in dict.fromkeys(args.models):
             start = time.monotonic()
             try:
                 await service.reserve_call()
@@ -39,17 +38,6 @@ async def main():
                 cause = exc.__cause__
                 report['results'].append({'model': model, 'accessible': False, 'code': exc.code, 'error': str(exc), 'latency_ms': round((time.monotonic()-start)*1000), 'http_status': getattr(cause, 'status_code', None) or getattr(cause, 'code', None)})
                 if exc.code in ('quota', 'daily_limit'): break
-        if not args.skip_stream and not any(r.get('code') in ('quota', 'daily_limit') for r in report['results']):
-            stream = ER2Stream(ai)
-            start = time.monotonic()
-            try:
-                await service.reserve_call(); await stream.open(); await stream.frame(frames[0])
-                output = await stream.observe([], frames, b'')
-                report['results'].append({'model': stream.model, 'accessible': True, 'latency_ms': round((time.monotonic()-start)*1000), 'output': output.model_dump(), 'usage': ai.last_usage})
-            except AIError as exc:
-                if exc.code == 'quota': await service.block_quota()
-                report['results'].append({'model': stream.model, 'accessible': False, 'code': exc.code, 'error': str(exc)})
-            finally: await stream.close()
     finally:
         await store.close()
         path = Path(args.output); path.parent.mkdir(parents=True, exist_ok=True)

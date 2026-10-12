@@ -1,6 +1,10 @@
 # Implementation status
 
-Date: 8 October 2026. This is an implementation record, not a competition validation result.
+Historical validation record: 8 October 2026. This is an implementation record, not a competition validation result.
+
+Model policy updated on 12 October 2026: all observation, finalization, clarification and assessment calls use `gemini-3.5-flash-lite` only. ER2 streaming and all model fallbacks were removed. Legacy environment overrides cannot change the model, and access/evaluation tools reject other identifiers. The earlier model checks below are historical; Flash-Lite physical-task accuracy still requires validation.
+
+Verification on 12 October: 44 backend tests and 2 frontend tests passed; API contracts regenerated and production build passed. Offline transport tests covered every AI role, rejected other model identifiers before transport, and verified that unavailable/quota/capacity errors make no fallback request. Both CLI tools rejected forbidden model arguments before inference. The local server was restarted and `/api/config` reported Flash-Lite for both physical and general processing. These checks made no Gemini API requests.
 
 | Capability | State |
 |---|---|

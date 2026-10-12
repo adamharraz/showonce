@@ -2064,8 +2064,8 @@ function Setup({ config }: { config: Config }) {
             </div>
           ))}
           <p className="fine">
-            No paid fallback is enabled. A missing connection is never replaced
-            with simulated AI.
+            All AI features use Gemini 3.5 Flash-Lite. If it is unavailable,
+            analysis pauses and your saved work stays available.
           </p>
         </section>
         <section className="panel">

@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parents[1] / '.env')
 
+MODEL = 'gemini-3.5-flash-lite'
+
 @dataclass
 class Settings:
     data_dir: Path = field(default_factory=lambda: Path(os.getenv('DATA_DIR', '.data')).resolve())
@@ -15,10 +17,8 @@ class Settings:
     supabase_anon: str = field(default_factory=lambda: os.getenv('SUPABASE_ANON_KEY', ''))
     supabase_service: str = field(default_factory=lambda: os.getenv('SUPABASE_SERVICE_ROLE_KEY', ''))
     origin: str = field(default_factory=lambda: os.getenv('APP_ORIGIN', 'http://localhost:8000').rstrip('/'))
-    physical_observer: str = field(default_factory=lambda: os.getenv('PHYSICAL_OBSERVER', 'er2'))
-    general_model: str = field(default_factory=lambda: os.getenv('GENERAL_MODEL', 'gemini-3.8-flash'))
-    fallback_model: str = field(default_factory=lambda: os.getenv('GENERAL_FALLBACK_MODEL', 'gemini-3.5-flash-lite'))
-    physical_assessor: str = field(default_factory=lambda: os.getenv('PHYSICAL_ASSESSOR', 'gemini-robotics-er-2-preview'))
+    # Model selection is fixed; legacy environment overrides are ignored.
+    general_model: str = field(default=MODEL, init=False)
     interval: float = field(default_factory=lambda: max(10., float(os.getenv('ANALYSIS_INTERVAL', '10'))))
     daily_limit: int = field(default_factory=lambda: int(os.getenv('DAILY_ANALYSIS_LIMIT', '120')))
     allow_local_login: bool = field(default_factory=lambda: os.getenv('ALLOW_LOCAL_LOGIN', 'true').lower() == 'true')
