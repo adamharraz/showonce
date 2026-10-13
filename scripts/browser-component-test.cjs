@@ -1,0 +1,71 @@
+/* Isolated fixture: synthetic camera + explicit test-only component suggestions.
+   Verifies reference rendering and confirmations, never recognition accuracy. */
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE || 'C:/Users/Adam Harraz/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+const fs=require('fs');let browser;let stage='start';
+(async()=>{
+  fs.mkdirSync('artifacts/ui',{recursive:true});
+  browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream']});
+  const context=await browser.newContext({viewport:{width:1440,height:1000},permissions:['camera','microphone']});
+  const page=await context.newPage();const errors=[];const gpuRequests=[];
+  page.on('pageerror',e=>errors.push(e.message));
+  page.on('request',r=>{if(r.method()==='POST'&&r.url().includes('/api/twins'))gpuRequests.push(r.url())});
+  await page.goto('http://127.0.0.1:8002/coach');await page.getByRole('button',{name:/Enter as instructor/}).click();
+  const panel=page.getByRole('region',{name:'Component library'});
+  const browse=panel.getByRole('group',{name:'Browse reference models'});
+  stage='offline catalogue';
+  for(const name of ['ESP32 development board','Solderless breadboard','Through-hole LED','Axial resistor','Jumper wire']){
+    await browse.getByRole('button',{name,exact:true}).click();
+    await page.getByRole('img',{name:'Interactive 3D reference: '+name,exact:true}).waitFor();
+  }
+  await browse.getByRole('button',{name:'ESP32 development board',exact:true}).click();
+  if(await page.getByLabel('Highlight a reference pin').count())throw Error('Unconfirmed catalogue preview exposed pin layout');
+  if(await page.getByRole('button',{name:'Identify visible parts',exact:true}).isEnabled())throw Error('No-camera inspection should be disabled');
+  await page.getByPlaceholder('For example, assembling a breadboard circuit').fill('Synthetic component-library transport check');
+  await page.getByRole('checkbox',{name:/Use microphone/}).uncheck();
+  await page.getByRole('checkbox',{name:/Everyone captured is 18.*Google/}).check();
+  await page.getByRole('button',{name:'Start live coaching',exact:true}).click();
+  await page.locator('.coach-live-pill.on').waitFor();
+  await page.waitForFunction(()=>document.querySelector('.coach-camera-footer')?.textContent.match(/[1-9]\d* frames shared/));
+  stage='recognition';await page.getByRole('button',{name:'Identify visible parts',exact:true}).click();
+  const recognised=panel.getByRole('group',{name:'Recognised components'});
+  await recognised.getByRole('button',{name:/ESP32 development board.*board1/}).waitFor();
+  if(await page.getByLabel('Highlight a reference pin').count())throw Error('AI suggestion exposed exact pin layout');
+  await recognised.getByRole('button',{name:/Axial resistor.*resistor1/}).click();
+  await panel.getByText(/Value: Unknown/).waitFor();
+  await browse.getByRole('button',{name:'Through-hole LED',exact:true}).click();
+  await panel.getByText('Catalogue preview',{exact:true}).waitFor();
+  await recognised.getByRole('button',{name:/ESP32 development board.*board1/}).click();
+  stage='board confirmation';await panel.getByText('Correct or confirm this part',{exact:true}).click();
+  await panel.getByRole('combobox',{name:'Board variant',exact:true}).selectOption('devkit-v1-30');
+  await panel.getByLabel('How did you confirm it?').fill('Fixture only: all 30 labels and headers checked.');
+  await panel.getByRole('button',{name:'Save confirmation',exact:true}).click();
+  await panel.getByText('User confirmed',{exact:true}).waitFor();
+  await panel.getByLabel('Highlight a reference pin').selectOption('D23');
+  await panel.screenshot({path:'artifacts/ui/component-library-confirmed.png'});
+  await page.getByRole('textbox',{name:'Message the live assistant'}).fill('A synthetic question after confirmation');
+  await page.getByRole('button',{name:'Send message',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelectorAll('.coach-message.assistant').length>=2);
+  stage='pause';await page.getByRole('button',{name:'Pause sharing',exact:true}).click();
+  await page.getByRole('button',{name:'Resume',exact:true}).waitFor();await page.waitForTimeout(500);
+  const pausedBefore=await page.locator('.coach-camera-footer').innerText();await page.waitForTimeout(2300);
+  const pausedAfter=await page.locator('.coach-camera-footer').innerText();
+  if(pausedBefore.match(/(\d+) frames/)[1]!==pausedAfter.match(/(\d+) frames/)[1])throw Error('Camera frames continued during pause');
+  await page.getByRole('button',{name:'Resume',exact:true}).click();await page.locator('.coach-live-pill.on').waitFor();
+  stage='refresh inspection';await page.getByRole('button',{name:'Identify visible parts',exact:true}).click();
+  await panel.getByText(/Reference models loaded/).waitFor();
+  await page.waitForFunction(()=>!document.querySelector('[aria-label="Highlight a reference pin"]'));
+  await page.getByRole('button',{name:'Finish',exact:true}).click();
+  await page.getByRole('button',{name:'Start a new session',exact:true}).waitFor();
+  await page.screenshot({path:'artifacts/ui/component-library-desktop.png',fullPage:true});
+  stage='history';await page.reload();await page.getByText('Recent conversations',{exact:true}).click();
+  await page.getByRole('button',{name:/Synthetic component-library transport check/}).first().click();
+  await page.getByRole('group',{name:'Recognised components'}).waitFor();
+  stage='mobile';await page.setViewportSize({width:390,height:844});await page.waitForTimeout(400);
+  if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1))throw Error('Mobile layout overflows');
+  await page.screenshot({path:'artifacts/ui/component-library-mobile.png',fullPage:true});
+  if(errors.length||gpuRequests.length)throw Error(JSON.stringify({errors,gpuRequests}));
+  const report={passed:true,synthetic_camera:true,test_only_recognition:true,
+    checks:['five catalogue models','recognition tool','unknown values','manual browse after recognition','variant confirmation','pin highlighting','fresh inspection clears confirmation','chat','pause/resume','saved history','desktop/mobile','no GPU generation'],errors,gpuRequests};
+  fs.writeFileSync('artifacts/ui/component-library-report.json',JSON.stringify(report,null,2));
+  console.log('Component library and Live Coach browser checks passed with isolated fixtures.');
+})().catch(e=>{console.error(stage,e.stack);process.exitCode=1}).finally(async()=>{await browser?.close()});

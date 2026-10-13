@@ -15,3 +15,19 @@ This supersedes the field-manual treatment in DESIGN.md. The owner approved a co
 - A fixed light surface deliberately supports reference comparison and reading.
 
 All capture, review, publication, consent, authentication, export and practice functions remain. The authenticated frame endpoint protects images; students receive published reference IDs, not private draft changes.
+
+## Local UI Skills pass
+
+### Visual direction
+
+The frontend-design skill is applied to the approved demonstration-first concept. Base palette: canvas #f3f6f6, surface #ffffff, ink #182229, secondary text #53616a, viewer controls #213e43, accent #176970. Manrope gives task titles a confident, compact silhouette; DM Sans carries reading and controls.
+
+The composition follows a demonstration viewer: a wide reference image beside a darker, bounded control area with its task title and useful state. This is the one visually bold element; lesson rows, navigation and editing forms remain quiet. The image preserves its original aspect without cropping useful task evidence.
+
+Desktop: [reference image | task title and action], then [compact library | actual review queue]. Mobile: [image], [task title/action], [library rows], [review queue]. The library's filter groups share one control band, with larger thumbnails and stronger titles below. Existing dark promotional/sidebar treatments are not revived. The viewer's darker surface separates task controls from evidence, rather than announcing a marketing slogan.
+
+Plan critique: repeating raised cards and adding ornamental status labels would reproduce a generic dashboard. Instead, only the real viewer and review work get bounded groups; dividers join rows rather than slice every heading. No fake imagery, progress values or extra headline copy is introduced.
+
+Applied the catalogue's better-ui and better-accessibility skills. Navigation rows use native links with ordinary browser new-tab behaviour. Route changes update the title and focus the content; the mobile navigation disclosure moves focus inside and restores it on dismissal. Stable result announcements and error alerts expose changes without adding visible copy.
+
+Touch targets are enlarged where density allows. Hover feedback is restricted to hover-capable pointers. Primary actions use the skill's 0.96 press scale over 150ms, only without a reduced-motion preference and only when enabled; frequent row and filter interactions stay still. Images have a neutral inset outline and play icons receive a small optical adjustment. The existing flat surfaces and overall approved layout are retained.

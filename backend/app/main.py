@@ -14,20 +14,29 @@ from .config import Settings
 from .storage import Store
 from .auth import Auth
 from .ai import Gemini
+from .coach import CoachManager, LiveBridge
+from .twins import TwinManager
 from .services import Service, Runtime, now, validate_draft, publication_errors
 from .models import CreateSession, DraftEdit, SetStep, FrameMessage, AudioMessage, uid, SessionRecord, AssessmentRecord, JobRecord, LessonRecord, VersionRecord, SessionDetail
 
-def create_app(settings=None, ai=None):
+def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_provider=None):
     settings = settings or Settings()
     settings.validate()
     store = Store(settings)
     auth = Auth(settings, store)
     service = Service(settings, store, ai or Gemini(settings))
+    coach = CoachManager(settings, service, auth, coach_bridge_factory)
+    service.coach = coach
+    twins = TwinManager(settings, store, twin_provider)
 
     @asynccontextmanager
     async def lifespan(app):
         await service.recover()
+        await coach.recover()
+        await twins.recover()
         yield
+        await coach.close()
+        await twins.close()
         await service.close()
         await store.close()
 
@@ -38,6 +47,11 @@ def create_app(settings=None, ai=None):
     async def user(request: Request):
         header = request.headers.get('authorization', '')
         return await auth.user(header.removeprefix('Bearer '))
+
+    coach.register(app, user)
+    twins.register(app, user)
+    app.state.coach = coach
+    app.state.twins = twins
 
     async def owned(kind, id, current):
         record = await store.get(kind, id)
@@ -59,7 +73,7 @@ def create_app(settings=None, ai=None):
 
     @app.get('/api/config')
     async def config():
-        return {'local_login': settings.storage_mode == 'local' and settings.allow_local_login, 'storage_mode': settings.storage_mode, 'ai_configured': bool(settings.gemini_key), 'free_tier_confirmed': settings.free_tier_confirmed, 'supabase_url': settings.supabase_url, 'supabase_anon_key': settings.supabase_anon, 'analysis_interval': settings.interval, 'daily_limit': settings.daily_limit, 'physical_model': 'gemini-robotics-er-2-streaming-preview' if settings.physical_observer == 'er2' else settings.general_model, 'general_model': settings.general_model, 'app_origin': settings.origin}
+        return {'local_login': settings.storage_mode == 'local' and settings.allow_local_login, 'storage_mode': settings.storage_mode, 'ai_configured': bool(settings.gemini_key), 'free_tier_confirmed': settings.free_tier_confirmed, 'supabase_url': settings.supabase_url, 'supabase_anon_key': settings.supabase_anon, 'analysis_interval': settings.interval, 'daily_limit': settings.daily_limit, 'physical_model': settings.general_model, 'general_model': settings.general_model, 'app_origin': settings.origin, 'coach_model': settings.coach_model, 'coach_enabled': settings.coach_enabled, 'coach_limit_seconds': settings.coach_seconds, 'twin_enabled':settings.twin_enabled, 'twin_free_confirmed':settings.twin_free_confirmed, 'twin_model':'stabilityai/stable-fast-3d', 'twin_daily_limit':settings.twin_daily_limit, 'twin_total_limit':settings.twin_total_limit}
 
     @app.get('/api/health')
     async def health():
@@ -105,7 +119,7 @@ def create_app(settings=None, ai=None):
         if body.mode == 'teach' and current.role != 'instructor':
             raise HTTPException(403, 'Only instructors create demonstrations')
         async with service.session_lock:
-            if any(not r.stopped and r.session['state'] not in ('interrupted',) for r in service.runtimes.values()):
+            if coach.active or any(not r.stopped and r.session['state'] not in ('interrupted',) for r in service.runtimes.values()):
                 raise HTTPException(409, 'One live session is already active. Finish it before starting another.')
             version = None
             if body.mode == 'practice':
@@ -115,7 +129,7 @@ def create_app(settings=None, ai=None):
                 if not version:
                     raise HTTPException(404, 'Published lesson version not found')
             id = uid()
-            session = {'id': id, 'owner_id': current.id, 'mode': body.mode, 'source': body.source, 'state': 'capturing', 'created_at': now(), 'last_analysis_at': None, 'last_error': None, 'title': 'Untitled demonstration' if not version else version['draft']['title'], 'lesson_id': uid() if not version else body.lesson_id, 'version_id': version['id'] if version else None, 'step_id': version['draft']['steps'][0]['id'] if version else None, 'gaps': [], 'published': False, 'model': settings.general_model if body.source == 'screen' else ('gemini-robotics-er-2-streaming-preview' if body.mode == 'teach' and settings.physical_observer == 'er2' else settings.physical_assessor)}
+            session = {'id': id, 'owner_id': current.id, 'mode': body.mode, 'source': body.source, 'state': 'capturing', 'created_at': now(), 'last_analysis_at': None, 'last_error': None, 'title': 'Untitled demonstration' if not version else version['draft']['title'], 'lesson_id': uid() if not version else body.lesson_id, 'version_id': version['id'] if version else None, 'step_id': version['draft']['steps'][0]['id'] if version else None, 'gaps': [], 'published': False, 'model': settings.general_model}
             await store.put('session', session)
             service.runtimes[id] = Runtime(session, service)
         return session
@@ -347,7 +361,7 @@ def create_app(settings=None, ai=None):
                 if producer or session['state'] == 'finished':
                     raise HTTPException(409, 'Session is no longer live')
                 async with service.session_lock:
-                    if any(not r.stopped for r in service.runtimes.values()):
+                    if coach.active or any(not r.stopped for r in service.runtimes.values()):
                         raise HTTPException(409, 'Finish the other active session first')
                     # Recovery never invents observations from the missing interval.
                     runtime = Runtime(session, service); service.runtimes[id] = runtime

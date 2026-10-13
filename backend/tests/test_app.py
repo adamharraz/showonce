@@ -6,9 +6,9 @@ import time
 import pytest
 from PIL import Image
 from fastapi.testclient import TestClient
-from app.config import Settings
+from app.config import MODEL, Settings
 from app.main import create_app
-from app.ai import Gemini, AIError, ER2Stream, OBSERVER, WRITER
+from app.ai import Gemini, AIError, OBSERVER, WRITER
 from app.models import LessonDraft, Step, Criterion, Question, Observation, ObservationBatch, AssessmentOutput, CriterionResult
 from app.services import guard_assessment, publication_errors, validate_draft
 
@@ -26,7 +26,7 @@ class FakeAI:
 
 @pytest.fixture
 def client(tmp_path):
-    settings = Settings(data_dir=tmp_path, interval=3600, physical_observer='flash', gemini_key='', storage_mode='local', origin='http://localhost:8000', allow_local_login=True)
+    settings = Settings(data_dir=tmp_path, interval=3600, gemini_key='', storage_mode='local', origin='http://localhost:8000', allow_local_login=True)
     app = create_app(settings, FakeAI())
     with TestClient(app) as client:
         client.app = app
@@ -35,6 +35,21 @@ def client(tmp_path):
 def login(client, role='instructor'):
     token = client.post('/api/auth/local', json={'role':role}).json()['token']
     return {'Authorization':'Bearer '+token}, token
+
+@pytest.mark.parametrize('source', ['camera', 'phone', 'screen'])
+@pytest.mark.parametrize('mode', ['teach', 'practice'])
+def test_all_capture_modes_report_flash_lite(client, source, mode):
+    config = client.get('/api/config').json()
+    assert config['physical_model'] == config['general_model'] == MODEL
+    headers, _ = login(client, 'instructor' if mode == 'teach' else 'student')
+    body = {'mode': mode, 'source': source}
+    if mode == 'practice':
+        draft = LessonDraft(title='Approved test lesson', steps=[Step(title='Place', instruction='Place the object.', expected_outcome='Object is visible.')])
+        client.portal.call(client.app.state.store.put, 'version', {'id': 'model-policy-v1', 'owner_id': 'local-instructor', 'draft': draft.model_dump()})
+        body.update(lesson_id='model-policy', version=1)
+    response = client.post('/api/sessions', headers=headers, json=body)
+    assert response.status_code == 201
+    assert response.json()['model'] == MODEL
 
 def frame_data():
     output = io.BytesIO()
@@ -190,7 +205,7 @@ def test_api_key_does_not_bypass_free_tier_guard(tmp_path):
     assert error.value.code=='budget_guard'
 
 def test_restart_preserves_ledger_and_requires_job_retry(tmp_path):
-    settings=Settings(data_dir=tmp_path,interval=3600,physical_observer='flash',gemini_key='',storage_mode='local',allow_local_login=True)
+    settings=Settings(data_dir=tmp_path,interval=3600,gemini_key='',storage_mode='local',allow_local_login=True)
     app=create_app(settings,FakeAI())
     with TestClient(app) as c:
         h,_=login(c)
@@ -203,29 +218,6 @@ def test_restart_preserves_ledger_and_requires_job_retry(tmp_path):
         assert r['session']['state']=='interrupted'
         assert r['job']['state']=='interrupted'
         assert r['session']['gaps']
-
-@pytest.mark.asyncio
-async def test_er2_configuration_is_accepted_by_installed_sdk(tmp_path):
-    class Context:
-        async def __aenter__(self):
-            return self
-        async def __aexit__(self,*args):
-            pass
-        async def receive(self):
-            await asyncio.sleep(100)
-            if False:yield None
-    class Client:
-        class Aio:
-            class Live:
-                def connect(self,*,model,config):
-                    assert config.response_modalities==['TEXT']
-                    assert config.context_window_compression
-                    return Context()
-            live=Live()
-        aio=Aio()
-    fake=FakeAI();fake.client=Client()
-    stream=ER2Stream(fake)
-    await stream.open();await stream.close()
 
 def test_quota_blocks_resume_finalization_and_further_calls(client):
     headers,token=login(client)
@@ -298,7 +290,7 @@ async def test_step_change_discards_inflight_assessment(tmp_path):
         async def assess(self,*args):
             started.set();await release.wait()
             return await super().assess(*args)
-    settings=Settings(data_dir=tmp_path,interval=3600,physical_observer='flash',gemini_key='',storage_mode='local')
+    settings=Settings(data_dir=tmp_path,interval=3600,gemini_key='',storage_mode='local')
     store=Store(settings);service=Service(settings,store,Delayed())
     step=Step(title='First',instruction='Place object',expected_outcome='Object visible',criteria=[Criterion(description='Visible object',mode='visual')])
     session={'id':'practice','owner_id':'local-student','mode':'practice','source':'camera','state':'capturing','created_at':now(),'step_id':step.id,'version_id':'lesson-v1','gaps':[],'last_error':None}

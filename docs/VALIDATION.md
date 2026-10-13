@@ -4,11 +4,11 @@ No result below has been claimed as achieved. Use real sessions and consenting a
 
 ## Access and sustained-capture gate
 
-Run `scripts/probe_models.py` with the verified Free-tier key. Record the actual dashboard quotas for ER2 Live, ER2 standard, Flash 3.8 and the fallback; include date and screenshots with keys/account identifiers redacted. Preview access is not guaranteed. A model listing alone is insufficient.
+Run `scripts/probe_models.py` with the verified Free-tier key. Record the actual dashboard quotas for `gemini-3.5-flash-lite`; include date and screenshots with keys/account identifiers redacted. Lesson processing and formal checkpoint evaluation use this model exclusively. The separate Live Coach uses `gemini-3.8-live` and has its own validation record in `LIVE_COACH.md`. A model listing alone is insufficient.
 
 Then use one five-minute narrated ESP32 demonstration. Record session ID, chosen and actual model IDs, frame gaps, narration losses, provisional-step cadence, context failures, reconnects, finalization latency, usage and remaining quotas. Export the owner-only evidence bundle through the authenticated app/API. Check continuous narration and a pause/resume. Do not claim real-time AI if only capture transport succeeds.
 
-Fail ER2 if essential observations are lost; switch physical observation to the Flash window adapter and repeat one live session. Test 2.5 Flash only if 3.8 is unavailable. If none fits free quotas, record a feasibility failure. Do not show replayed model responses as new inference.
+If essential observations are lost, adjust capture or the window-based Flash-Lite pipeline and repeat one live session. If it cannot meet the requirements within free quotas, record a feasibility failure. Do not switch models or show replayed model responses as new inference.
 
 ## Human extraction evaluation
 
@@ -32,7 +32,7 @@ For every demo, record:
 
 Targets: ≥90% coverage, correct ordering, zero unsupported critical claims. Required ambiguous details must block publication. Repeat with a teacher undoing a mistake and verify the corrected ledger/tutorial. If the targets fail, narrow the supported task/checkpoint scope and report failures.
 
-## Checkpoint datasets and comparison
+## Checkpoint datasets and validation
 
 Development set: 12 new physical examples, four correct, four incorrect and four unclear. Include diverse camera positions and avoid near-duplicate frames across sets. A supervisor supplies labels without seeing model predictions. Derive the step/criteria from an approved lesson, not a hidden system checklist.
 
@@ -48,10 +48,10 @@ Use actual exported step JSON and relevant teacher reference images. Keep `corre
 .\.venv\Scripts\python.exe scripts\evaluate_checkpoints.py evaluation\dev.jsonl --output artifacts\development.json
 ```
 
-It uses real requests, counts them against the shared application limit, saves every accepted result/error, latency and usage, and compares false passes first, accuracy second, choosing Flash for a tie. A recommendation is withheld if errors or unequal evaluated totals make the comparison incomplete. Decide which classes remain automatic; change failing criteria to manual before publication. Repeat the selected model on a completely separate 30-example holdout:
+It uses real Flash-Lite requests, counts them against the shared application limit, and saves every accepted result/error, false passes, accuracy, latency and usage. No other model is called. Decide which classes remain automatic; change failing criteria to manual before publication. Repeat Flash-Lite on a completely separate 30-example holdout:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\evaluate_checkpoints.py evaluation\holdout.jsonl --models gemini-3.8-flash --output artifacts\holdout.json
+.\.venv\Scripts\python.exe scripts\evaluate_checkpoints.py evaluation\holdout.jsonl --models gemini-3.5-flash-lite --output artifacts\holdout.json
 ```
 
 Use ten correct, ten incorrect, ten unclear. Targets: ≥90% classification accuracy and zero `met` predictions for incorrect/unclear examples. `Unable to assess` counts as a classification miss against these labelled classes; report abstention separately. Analyze each checkpoint class rather than relying only on pooled accuracy. Remove unsupported classes. Do not tune on the holdout and keep calling it a holdout.
@@ -92,7 +92,7 @@ Use recorded actual MVP operation. Label any old inference as a historical resul
 | 8 Oct | Access probe, adapters, storage | Hardware, hosted capture/account setup | Actual free quota + five-minute capture |
 | 9 Oct | Ledger/recovery integration | Webcam, phone, permission checks | One continuous demo gives persistent observations |
 | 10 Oct | Finalization/version isolation | Review, clarifications, exports | Approved reusable lesson |
-| 11 Oct | Assessment comparison | Label 12 examples; Sheets only if primary passes | Supported visible checkpoints selected |
+| 11 Oct | Flash-Lite assessment validation | Label 12 examples; Sheets only if primary passes | Supported visible checkpoints selected |
 | 12 Oct | Holdout and timing collection | Label 30 holdout cases + three adult pilots | Report targets and narrow failures |
 | 13 Oct | Fix failures, freeze build | Export manifest and rehearse | Evidence reproducible |
 | 14 Oct | Deployment/local backup check | Record/verify English video | Accessible link + ≤8min actual demo |

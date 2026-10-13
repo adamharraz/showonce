@@ -4,11 +4,15 @@ One live demonstration becomes a reviewed, reusable lesson. Students then practi
 
 ## Current delivery
 
-Implemented: React/TypeScript capture and review app, FastAPI backend, webcam/screen/phone capture, temporary narration, ER2 Live and windowed Gemini adapters, persistent observation ledger, clarification and editing, immutable published versions, practice feedback guards, private evidence, exports, failure recovery, free-tier controls, deployment configuration and evaluation tools.
+Latest 13 October update: the main 3D workflow uses **Gemini 3.8 Live recognition → prepared component references → user confirmation**. ESP32, breadboard, LED, resistor and wire models render locally in the browser. Browsing requires no AI request or GPU generation; an explicit camera inspection uses the existing Live connection. Exact pin labels require confirmation of the supported ESP32 DevKit V1 30-pin variant; other boards remain generic. See [component library and validation](docs/COMPONENT_LIBRARY.md). Live microphone backlog is paced, and delivery bursts report a gap instead of closing the session.
+
+Earlier 13 October implementation: Stable Fast 3D was deployed on Modal and passed an official chair-sample generation test, but a subsequent real ESP32 photo produced hands/people while omitting the board. It has been replaced in the main interface by the component catalogue, and local mesh generation is disabled. Its original source and private saved outputs remain available for historical records; [photo-to-3D notes](docs/PHOTO_TO_3D.md) describe that experiment. The 200,000-token coaching cap remains removed; usage is still logged.
+
+Implemented: React/TypeScript capture and review app, FastAPI backend, webcam/screen/phone capture, temporary narration, windowed Gemini 3.5 Flash-Lite analysis, live camera/voice coaching with a side-by-side assistant, persistent observation ledger, clarification and editing, immutable published versions, practice feedback guards, private evidence, exports, failure recovery, free-tier controls, deployment configuration and evaluation tools.
 
 **Real ER2 streaming, standard ER2 and Flash Lite requests passed the local access gate on 8 October 2026.** A real Flash Lite pipeline extracted a tutorial from synthetic before/after screenshots and identified a missing circle in a synthetic student image. This verifies API integration, not ESP32/Sheets accuracy, narration, real-device capture or TRL4. Actual account quotas, hosted deployment and beginner pilots remain unverified. The app never substitutes canned responses for live AI; fake model results exist only in tests.
 
-The local app works without cloud credentials. This workspace has a private Gemini key and its Free-tier guard enabled following the owner's confirmation that paid billing is absent. Clones need their own key and Free-tier confirmation. The local general model is currently `gemini-3.5-flash-lite` because Flash 3.8 returned HTTP 503 capacity errors; ER2 remains the physical observer and assessor.
+The local app works without cloud credentials. This workspace has a private Gemini key and its Free-tier guard enabled following the owner's confirmation that paid billing is absent. Clones need their own key and Free-tier confirmation. The latest 12 October request adds an explicit Live Coach using `gemini-3.8-live` for real-time camera/voice conversation. Existing lesson processing stays pinned to `gemini-3.5-flash-lite`. Both identifiers are fixed, and no model fallback is enabled. Earlier ER2 access-gate results above are historical. See `docs/LIVE_COACH.md` for live setup, cost assumptions, limits and validation.
 
 ## Run locally on Windows
 
@@ -35,29 +39,31 @@ Dependencies are already installed in this workspace. Its host Python is 3.13; a
 
 1. Create/use a **Free-tier** Google AI Studio project. Check its billing state and actual model quotas in the dashboard. Do not attach paid billing or enable upgrades.
 2. Put `GEMINI_API_KEY` in `backend/.env`, never the frontend or chat. Apply the Gemini API key restrictions required by AI Studio. Set `FREE_TIER_CONFIRMED=true` only after checking the account. This flag is a manual budget guard; the application cannot inspect Google's billing state.
-3. Run `.\.venv\Scripts\python.exe scripts\probe_models.py`. It performs up to four small real requests and saves access, errors, usage and latency. It does not verify daily quotas. API calls share the application's persistent daily call guard.
+3. Run `.\.venv\Scripts\python.exe scripts\probe_models.py`. It performs one small real Flash-Lite request and saves access, errors, usage and latency. It does not verify daily quotas. API calls share the application's persistent daily call guard.
 4. Run one narrated five-minute session in the app. Export its evidence before publication discards unselected frames. Check lost narration, readability, ordering, updates, context and quota use against `docs/VALIDATION.md`.
-5. If ER2 Live fails the gate, set `PHYSICAL_OBSERVER=flash`. If Flash 3.8 is unavailable or busy, set `GENERAL_MODEL=gemini-3.5-flash-lite` and `GENERAL_FALLBACK_MODEL=gemini-3.8-flash`, then validate this configuration. The 2.5 Flash endpoint returned HTTP 404 for this project. Restart after changing settings. Quota exhaustion always stops calls; it never triggers a paid fallback.
+5. If Flash-Lite fails the gate, preserve the captured evidence and report the failure. Resolve quota, capacity or accuracy issues with this same model; do not substitute another endpoint. Retry explicitly when the service becomes available. Quota exhaustion stops calls.
 
-Default models:
+Fixed model responsibilities:
 
 | Operation | Model |
 |---|---|
-| Physical instructor observation | `gemini-robotics-er-2-streaming-preview` |
-| Screen/window observation and final lesson | `gemini-3.8-flash` |
-| Physical learner checking, pending comparison | `gemini-robotics-er-2-preview` |
-| Screen learner checking | `gemini-3.8-flash` |
-| Unavailable general endpoint fallback | `gemini-3.5-flash-lite` |
+| Camera, phone and screen instructor observation | `gemini-3.5-flash-lite` |
+| Final tutorial and instructor clarification | `gemini-3.5-flash-lite` |
+| Physical and software learner checking | `gemini-3.5-flash-lite` |
+| Access probes and checkpoint evaluation | `gemini-3.5-flash-lite` |
+| Explicit Live Coach camera, conversation and speech | `gemini-3.8-live` |
 
-These are defaults for a new installation; `/api/config` reports the actual local configuration. Google GenAI SDK 2.29.0 is pinned for the current Interactions schema and `steps` responses. Structured requests use a compact JSON schema; full Pydantic validation still rejects invalid types, oversized fields and unknown properties. SDK automatic retries are disabled so quota and capacity failures remain explicit.
+This restriction applies to local and hosted installations; `/api/config` reports the model. The structured adapter rejects other lesson models before sending a request, and evaluation tools reject them at argument parsing. The separate Live Coach bridge connects only to its fixed Live model. Google GenAI SDK 2.29.0 is pinned for the current Interactions schema and `steps` responses. Structured requests use a compact JSON schema; full Pydantic validation still rejects invalid types, oversized fields and unknown properties. SDK automatic retries are disabled so quota and capacity failures remain explicit.
 
-Physical assessment must be narrowed and its model chosen from real labelled examples before claiming validation. Set `PHYSICAL_ASSESSOR=gemini-3.8-flash` if Flash wins. Neither robotics actions nor generated code are executed.
+Validate Flash-Lite physical assessment on real labelled examples and narrow automatic checks to supported classes. Neither robotics actions nor generated code are executed.
 
-Only model-unavailable errors allow an automatic general-model fallback. Invalid outputs pause analysis, and quota errors lock the session's checking. Other connection failures reconnect once and preserve the affected frames; Flash may recover that observation window. Retry finalization explicitly after a failed job or backend restart. If no model produces a usable lesson within free quotas, record the gate as failed.
+Model-unavailable errors, invalid outputs and connection failures pause analysis and preserve affected frames. Quota errors lock the session's checking. Resume or retry explicitly with Flash-Lite when appropriate; no other model is called. Retry finalization explicitly after a failed job or backend restart. If Flash-Lite cannot produce a usable lesson within free quotas, record the gate as failed.
 
-The daily analysis-operation limit defaults to 120 and allows one active session. It is an extra application limit, **not the account's actual quota and not a token/cost guarantee**. An operation can include an unavailable-endpoint attempt before its fallback. The Free-tier account restriction is what keeps API cash spending at zero. Failed operations count. Streaming input also consumes upstream quota. A quota error blocks subsequent requests for the current UTC day, including after a restart; the next day's guard reset does not guarantee that Google's quota has reset.
+The daily analysis-operation limit defaults to 120 and allows one active session. It is an extra application limit, **not the account's actual quota and not a token/cost guarantee**. Each structured operation makes at most one request, including failed attempts. Live coaching counts connections and replies against the same application guard; this does not equal Google's streaming quota accounting. The Free-tier account restriction is what keeps API cash spending at zero. A quota error blocks subsequent requests for the current UTC day, including after a restart; the next day's guard reset does not guarantee that Google's quota has reset.
 
 ## Using the MVP
+
+- Live Coach: open `/coach`, share a webcam or screen, and talk or type. Native spoken replies and a transcript appear beside the video. Pause/finish stop upstream sharing. From a published lesson, select **Practice with live voice**. Coaching stays advisory; the existing guided practice supplies formal checkpoint outcomes.
 
 - Instructor: choose webcam, phone or screen; consent; start; demonstrate once with natural narration. Provisional observations appear as windows finish. Pause stops media transmission. Finish flushes received evidence and requests a structured tutorial.
 - Review: edit title, materials, steps, ordering, references, checkpoints and clarification answers. Optionally apply those clarifications with AI, then review the revised draft. Required unanswered questions block publication and cannot be removed by AI revision. Hidden/functional properties stay manual. Publish only after review.
@@ -98,7 +104,7 @@ An additional UI lesson-flow test is available using `backend/tests/ui_server.py
 
 Tests cover live transport through finalization using a test-only model, publication blocking, immutable versions and evidence exports, private ownership, student roles, phone tickets, assessment guards, restart recovery and installed SDK configuration. Frontend tests cover clarification and step ordering; the production build type-checks the generated contracts.
 
-Real evaluation instructions, deadlines, responsibilities, checkpoint dataset format and pilot forms are in `docs/VALIDATION.md`. The model comparison tool never puts labels into prompts. `docs/BUILD_STATUS.md` separates implementation evidence from uncompleted validation. Do not call this TRL4 until the integrated prototype is validated in the lab and its evidence is reviewed.
+Real evaluation instructions, deadlines, responsibilities, checkpoint dataset format and pilot forms are in `docs/VALIDATION.md`. The checkpoint evaluation tool never puts labels into prompts. `docs/BUILD_STATUS.md` separates implementation evidence from uncompleted validation. Do not call this TRL4 until the integrated prototype is validated in the lab and its evidence is reviewed.
 
 ## Architecture
 
@@ -116,5 +122,5 @@ No hardware has been purchased, no billing enabled and no cloud service provisio
 
 The preloaded blink sketch is in `hardware/esp32_blink/esp32_blink.ino`. It has not been compiled/flashed on the user's board. Task-specific firmware constants are kept outside the AI prompts. Phone narration uses short PCM chunks; leave a brief pause after the final sentence and check end-of-capture losses during the real-device gate.
 
-Official integration references: [ER2 capabilities](https://ai.google.dev/gemini-api/docs/robotics-overview), [ER2 streaming](https://ai.google.dev/gemini-api/docs/robotics-streaming), [Flash](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash), [pricing](https://ai.google.dev/gemini-api/docs/pricing), [actual quotas](https://ai.google.dev/gemini-api/docs/rate-limits), [API terms](https://ai.google.dev/gemini-api/terms), [Render Free](https://render.com/docs/free), [Supabase Free](https://supabase.com/pricing), [browser capture](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia).
+Official integration references: [Flash-Lite](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite), [pricing](https://ai.google.dev/gemini-api/docs/pricing), [actual quotas](https://ai.google.dev/gemini-api/docs/rate-limits), [API terms](https://ai.google.dev/gemini-api/terms), [Render Free](https://render.com/docs/free), [Supabase Free](https://supabase.com/pricing), [browser capture](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia).
 

@@ -63,13 +63,13 @@ class Store:
             r = await self.client.delete(f'{self.settings.supabase_url}/rest/v1/showonce_records', headers=self.headers, params={'id': f'eq.{id}', 'kind': f'eq.{kind}'})
             r.raise_for_status()
 
-    async def put_blob(self, key, data):
+    async def put_blob(self, key, data, content_type='image/jpeg'):
         if self.db:
             path = self.settings.data_dir / 'frames' / key
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
         else:
-            r = await self.client.post(f'{self.settings.supabase_url}/storage/v1/object/showonce/{key}', headers={**self.headers, 'Content-Type': 'image/jpeg', 'x-upsert': 'true'}, content=data)
+            r = await self.client.post(f'{self.settings.supabase_url}/storage/v1/object/showonce/{key}', headers={**self.headers, 'Content-Type': content_type, 'x-upsert': 'true'}, content=data)
             r.raise_for_status()
 
     async def get_blob(self, key):

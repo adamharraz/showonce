@@ -4,6 +4,144 @@
  */
 
 export interface paths {
+    "/api/coaching/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** History */
+        get: operations["history_api_coaching_sessions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/components/catalogue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Catalogue */
+        get: operations["catalogue_api_components_catalogue_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/coaching/sessions/{id}/components": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Component Scene */
+        get: operations["component_scene_api_coaching_sessions__id__components_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Correct */
+        patch: operations["correct_api_coaching_sessions__id__components_patch"];
+        trace?: never;
+    };
+    "/api/twins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** History */
+        get: operations["history_api_twins_get"];
+        put?: never;
+        /** Create */
+        post: operations["create_api_twins_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/twins/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get */
+        get: operations["get_api_twins__id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/twins/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry */
+        post: operations["retry_api_twins__id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/twins/{id}/model": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Model */
+        get: operations["model_api_twins__id__model_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/twins/{id}/photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Photo */
+        get: operations["photo_api_twins__id__photo_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/config": {
         parameters: {
             query?: never;
@@ -375,6 +513,32 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** Catalogue */
+        Catalogue: {
+            /**
+             * Version
+             * @default 1
+             */
+            version: string;
+            /** Parts */
+            parts?: components["schemas"]["Part"][];
+        };
+        /** ComponentScene */
+        ComponentScene: {
+            /**
+             * Revision
+             * @default 0
+             */
+            revision: number;
+            /** Frame Id */
+            frame_id?: string | null;
+            /** Timestamp Ms */
+            timestamp_ms?: number | null;
+            /** Components */
+            components?: components["schemas"]["ScenePart"][];
+            /** Questions */
+            questions?: string[];
+        };
         /** CreateSession */
         CreateSession: {
             /**
@@ -391,6 +555,30 @@ export interface components {
             lesson_id?: string | null;
             /** Version */
             version?: number | null;
+        };
+        /** CreateTwin */
+        CreateTwin: {
+            /** Request Id */
+            request_id: string;
+            /** Image */
+            image: string;
+            /**
+             * Title
+             * @default My build
+             */
+            title: string;
+            /** Session Id */
+            session_id?: string | null;
+            /**
+             * Remove Background
+             * @default true
+             */
+            remove_background: boolean;
+            /**
+             * Consent
+             * @constant
+             */
+            consent: true;
         };
         /** Criterion */
         Criterion: {
@@ -530,6 +718,53 @@ export interface components {
             /** Session Id */
             session_id: string;
         };
+        /** Part */
+        Part: {
+            /**
+             * Id
+             * @enum {string}
+             */
+            id: "esp32" | "breadboard" | "led" | "resistor" | "wire" | "unknown";
+            /** Name */
+            name: string;
+            /** Description */
+            description: string;
+            /** Asset */
+            asset: string;
+            /** Limitations */
+            limitations: string;
+            /** Variants */
+            variants?: components["schemas"]["Variant"][];
+        };
+        /** PartEdit */
+        PartEdit: {
+            /** Revision */
+            revision: number;
+            /** Component Id */
+            component_id: string;
+            /**
+             * Part Id
+             * @enum {string}
+             */
+            part_id: "esp32" | "breadboard" | "led" | "resistor" | "wire" | "unknown";
+            /** Variant Id */
+            variant_id?: string | null;
+            /** Value Text */
+            value_text?: string | null;
+            /** Note */
+            note: string;
+        };
+        /** Pin */
+        Pin: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** X */
+            x: number;
+            /** Z */
+            z: number;
+        };
         /** Question */
         Question: {
             /** Id */
@@ -546,6 +781,44 @@ export interface components {
              * @default
              */
             answer: string;
+        };
+        /** ScenePart */
+        ScenePart: {
+            /**
+             * Id
+             * @description Unique short identifier, e.g. part1. Use only letters, digits, underscores or hyphens.
+             */
+            id: string;
+            /**
+             * Part Id
+             * @enum {string}
+             */
+            part_id: "esp32" | "breadboard" | "led" | "resistor" | "wire" | "unknown";
+            /** Evidence */
+            evidence: string;
+            /**
+             * Uncertain
+             * @default true
+             */
+            uncertain: boolean;
+            /** Value Text */
+            value_text?: string | null;
+            /** Value Source */
+            value_source?: ("visible" | "narrated" | "user-confirmed") | null;
+            /** Variant Id */
+            variant_id?: string | null;
+            /**
+             * Confirmed
+             * @default false
+             */
+            confirmed: boolean;
+            /**
+             * Confirmation Note
+             * @default
+             */
+            confirmation_note: string;
+            /** Highlighted Pin */
+            highlighted_pin?: string | null;
         };
         /** SessionDetail */
         SessionDetail: {
@@ -649,6 +922,46 @@ export interface components {
             /** Questions */
             questions?: components["schemas"]["Question"][];
         };
+        /** TwinRecord */
+        TwinRecord: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "queued" | "preparing" | "generating" | "ready" | "error" | "interrupted";
+            /**
+             * Model
+             * @default stabilityai/stable-fast-3d
+             */
+            model: string;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+            /** Error */
+            error?: string | null;
+            /**
+             * Byte Size
+             * @default 0
+             */
+            byte_size: number;
+            /** Generation Seconds */
+            generation_seconds?: number | null;
+            /**
+             * Reused
+             * @default false
+             */
+            reused: boolean;
+            /**
+             * Remove Background
+             * @default true
+             */
+            remove_background: boolean;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -661,6 +974,19 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** Variant */
+        Variant: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description: string;
+            /** Pins */
+            pins: components["schemas"]["Pin"][];
+            /** Source */
+            source: string;
         };
         /** VersionRecord */
         VersionRecord: {
@@ -749,6 +1075,289 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    history_api_coaching_sessions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    catalogue_api_components_catalogue_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Catalogue"];
+                };
+            };
+        };
+    };
+    component_scene_api_coaching_sessions__id__components_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComponentScene"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    correct_api_coaching_sessions__id__components_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PartEdit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComponentScene"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    history_api_twins_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TwinRecord"][];
+                };
+            };
+        };
+    };
+    create_api_twins_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTwin"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TwinRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_api_twins__id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TwinRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_api_twins__id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TwinRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    model_api_twins__id__model_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    photo_api_twins__id__photo_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     config_api_config_get: {
         parameters: {
             query?: never;

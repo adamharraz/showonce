@@ -1,0 +1,361 @@
+/* Colour lives in the welcoming workbench; task evidence and tools stay readable. */
+.logo {
+  color: #155fc4;
+}
+.logo-period {
+  color: #155fc4;
+}
+.logo-mark span {
+  background: #155fc4;
+}
+.question > span,
+.question small {
+  color: #8d4935;
+}
+.settings-grid > .panel p,
+.settings-grid > .panel .fine,
+.validation-item strong,
+.validation-item small,
+.settings-grid small,
+.settings-grid strong,
+.setup-help p,
+.setup-help .fine {
+  color: var(--quiet);
+}
+code {
+  color: #1459b5;
+  background: #e7f0ff;
+}
+.skip-link {
+  position: fixed;
+  top: -80px;
+  left: 16px;
+  z-index: 100;
+  background: white;
+  color: #1459b5;
+  padding: 12px 18px;
+  border: 2px solid currentColor;
+}
+.skip-link:focus {
+  top: 12px;
+}
+.fine,
+.muted,
+.lesson-meta,
+.material,
+.read-step > p,
+.read-step .criteria,
+.read-step .criteria small,
+.clarified,
+.clarified strong,
+.clarified p {
+  color: var(--quiet);
+}
+.coach-camera-empty {
+  background: #213e43;
+  color: #e4eff9;
+}
+.coach-camera-empty h3,
+.coach-camera-empty h2,
+.coach-camera-empty p {
+  color: #e4eff9;
+}
+.component-viewer {
+  background: #edf4fa;
+  color: #40536d;
+}
+.coach-chat-empty > span:last-child {
+  color: var(--quiet);
+}
+.coach-camera-empty > svg {
+  color: #a9cdf7;
+}
+.coach-assistant-heading,
+.coach-message {
+  background: #f0f6ff;
+  border-color: var(--rule);
+}
+.coach-message p {
+  color: var(--ink);
+}
+.coach-message > span,
+.coach-message.user > span {
+  color: #1459b5;
+}
+.coach-setup {
+  padding: 22px;
+}
+.coach-assistant {
+  top: 90px;
+}
+.eyebrow {
+  display: none;
+}
+.criteria small,
+.criteria > span,
+.criteria > li,
+.criteria > div,
+.criterion-list span,
+.criterion-list small {
+  color: var(--quiet);
+}
+.criterion,
+.criterion span,
+.criterion small {
+  color: var(--quiet);
+}
+:root {
+  --accent: #155fc4;
+  --accent-hover: #104b9d;
+  --paper: #f7faff;
+  --surface: #fff;
+  --ink: #132342;
+  --quiet: #53617b;
+  --rule: #d8e2f0;
+}
+.sidebar {
+  gap: 24px;
+}
+.sidebar .logo {
+  color: #155fc4;
+}
+.sidebar-bottom > div {
+  display: none;
+}
+.workspace main {
+  padding-top: 28px;
+}
+.electronics-welcome,
+.login-art {
+  background: #93d3fb url("./assets/electronics-workbench.png") center bottom /
+    cover no-repeat;
+  text-align: center;
+}
+.electronics-welcome {
+  min-height: 370px;
+  border-radius: 16px;
+  padding: 28px 24px 120px;
+  margin-bottom: 36px;
+  overflow: hidden;
+}
+.welcome-wordmark {
+  margin: 0;
+  color: #186ad9;
+  font-family: "Manrope", sans-serif;
+  font-size: clamp(48px, 6vw, 88px);
+  font-weight: 900;
+  letter-spacing: -3px;
+  line-height: 1.1;
+  -webkit-text-stroke: 6px white;
+  paint-order: stroke fill;
+  text-shadow: 0 7px 0 #5ea3db;
+}
+.welcome-tagline {
+  color: #102448;
+  font-family: "Manrope", sans-serif;
+  font-size: 25px;
+  line-height: 1.3;
+  font-weight: 800;
+  margin: 14px 0 20px;
+  letter-spacing: -0.7px;
+}
+.welcome-action {
+  background: white;
+  color: #1459b5;
+  border: 1px solid #d8e6f5;
+  border-radius: 24px;
+  padding: 12px 24px;
+  font-weight: 750;
+}
+@media (hover: hover) {
+  .welcome-action:hover {
+    background: #edf5ff;
+  }
+}
+.library-heading {
+  margin-bottom: 22px;
+}
+.library-heading h1 {
+  font-size: 32px;
+}
+.practice-feature {
+  border-radius: 12px;
+  margin-bottom: 32px;
+}
+.feature-copy {
+  background: #204d7e;
+  padding: 28px;
+}
+.feature-copy h3 {
+  font-size: clamp(24px, 2.2vw, 32px);
+}
+.feature-copy .button {
+  color: #1459b5;
+}
+.feature-copy h2,
+.feature-copy p {
+  color: #e0ecfa;
+}
+.lesson-card {
+  background: white;
+  margin: 10px 0 0;
+  padding: 14px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+}
+.lesson-grid {
+  border: 0;
+}
+.lesson-card h3 {
+  color: var(--ink);
+}
+@media (hover: hover) {
+  .lesson-card:hover {
+    background: #f0f6ff;
+    border-color: #a9c5e8;
+  }
+}
+.lesson-filters button[aria-pressed="true"] {
+  background: #e7f0ff;
+  color: #1459b5;
+}
+.review-queue {
+  background: #eef5ff;
+  border-color: #dce8f8;
+  border-radius: 12px;
+}
+.review-link {
+  color: #1459b5;
+}
+.login-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(360px, 0.8fr);
+  padding: 40px;
+  gap: 40px;
+  max-width: 1440px;
+  margin: auto;
+  min-height: 100dvh;
+}
+.login-art {
+  border-radius: 20px;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: 80px 24px;
+  min-height: 480px;
+}
+.login-art .welcome-wordmark {
+  font-size: clamp(52px, 6vw, 80px);
+}
+.login-panel {
+  width: 100%;
+  max-width: 440px;
+  margin: auto;
+  border: 0;
+  background: transparent;
+}
+.coach-layout {
+  gap: 24px;
+}
+.coach-layout .panel {
+  border-radius: 10px;
+  background: white;
+}
+.coach-camera-heading,
+.coach-camera-footer,
+.coach-chat-heading {
+  background: #eef5ff;
+  color: var(--ink);
+}
+.component-panel .component-viewer {
+  border-radius: 8px;
+  overflow: hidden;
+}
+@media (hover: none) {
+  .lesson-card:hover {
+    background: white;
+    box-shadow: none;
+    transform: none;
+  }
+  .sidebar nav button:hover:not(.active) {
+    background: transparent;
+    color: var(--quiet);
+  }
+}
+@media (min-width: 701px) and (max-width: 1050px) {
+  .sidebar {
+    padding: 0 20px;
+    gap: 18px;
+  }
+  .sidebar nav {
+    gap: 4px;
+  }
+  .sidebar nav button {
+    font-size: 11px;
+    padding: 0 6px;
+  }
+  .login-wrap {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    padding: 24px;
+  }
+  .login-art {
+    min-height: 260px;
+    padding: 24px;
+    background-size: 100% auto;
+  }
+}
+@media (max-width: 700px) {
+  .electronics-welcome {
+    min-height: 310px;
+    margin-bottom: 26px;
+    border-radius: 12px;
+    padding: 26px 12px 115px;
+    background-size: 100% auto;
+  }
+  .welcome-wordmark {
+    font-size: 48px;
+    letter-spacing: -2px;
+    -webkit-text-stroke-width: 6px;
+  }
+  .welcome-tagline {
+    font-size: 19px;
+    margin: 12px 0 16px;
+  }
+  .welcome-action {
+    font-size: 13px;
+    padding: 10px 18px;
+  }
+  .library-heading h1 {
+    font-size: 28px;
+  }
+  .lesson-card {
+    padding: 12px;
+    column-gap: 12px;
+  }
+  .login-wrap {
+    display: flex;
+    flex-direction: column;
+    padding: 18px;
+    gap: 12px;
+  }
+  .login-art {
+    min-height: 240px;
+    width: 100%;
+    padding: 26px 12px;
+    background-size: 100% auto;
+  }
+  .login-art .welcome-wordmark {
+    font-size: 48px;
+  }
+  .login-panel {
+    padding: 26px 18px;
+  }
+  .feature-copy {
+    padding: 24px;
+  }
+  .coach-layout {
+    gap: 16px;
+  }
+}

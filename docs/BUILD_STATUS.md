@@ -1,6 +1,24 @@
 # Implementation status
 
-Date: 8 October 2026. This is an implementation record, not a competition validation result.
+Latest 13 October: the main 3D interface now uses Gemini 3.8 Live snapshot recognition and the prepared five-family component library. Local SF3D generation is disabled after the owner's ESP32 image produced hands/people instead of the board. Browsing is entirely local, manual confirmation gates exact board pins, and historical reference inventories load with saved conversations. Full regressions passed (80 backend, seven frontend), production build passed, and the catalogue browser flow passed including mobile and no GPU calls. An initial physical-image attempt produced rejected tool calls; after adding ID/frame guidance and safe rejection diagnostics, a repeat recognized the ESP32 family in 1.416s with 2,077 reported tokens while leaving variant/pins unresolved. This is one passing repeat, not an accuracy benchmark. See `COMPONENT_LIBRARY.md`.
+
+Earlier 13 October: Hugging Face access was attached and a private Modal A10 photo-to-3D worker was activated. A real reconstruction of the official SF3D chair sample passed in 174.489s including cold startup (2.936s inside the generation method). Chrome displayed the textured GLB, rotated it and downloaded identical saved bytes; desktop/mobile checks passed without additional inference. Eleven photo-to-3D regression tests passed after fixing conditional Secret hydration. The billing snapshot reported US$0 billed. The subsequent ESP32-photo failure caused the main-interface replacement above. See `PHOTO_TO_3D.md` for historical evidence, controls and limits. No paid billing/payment method was enabled; the owner confirmed US$0 net spend and sufficient credits.
+
+Current regression validation: 80 backend tests, seven frontend tests, generated contracts and production build passed. New isolated browser checks passed photo capture/consent, asynchronous GLB jobs, loading/download, saved models and desktop/mobile layout. The test GLB is explicitly synthetic. Microphone pacing plus a nonfatal burst guard prevents normal audio backlog from closing camera sharing; async disconnect cleanup releases its session slot.
+
+13 October: implemented the local five-family 3D component catalogue with Gemini Live snapshot/tool recognition, owner-only versioned corrections, explicit unknown values/variants and reference pin highlighting after board confirmation. Real Live integration on a synthetic drawing returned an LED and uncertain resistor with no invented value. Physical recognition remains unvalidated; details are in `COMPONENT_LIBRARY.md`.
+
+Current automated validation: **67 backend tests**, **5 frontend tests**, regenerated API contracts and production build passed. Component UI checks passed with a synthetic camera and isolated fixture, including 3D rendering, pinout withholding, manual corrections and mobile layout. The real Live snapshot gate passed with one completed reply reporting 2,100 tokens. Services remain free-tier guarded; no new hosting or billing was configured.
+
+Latest 12 October update: the requested Relay-style Live Coach uses `gemini-3.8-live` for camera and voice, with video beside the assistant, typing, microphone/voice controls, pause/resume, usage caps and private conversation history. Lesson processing still uses Flash-Lite. This supersedes the earlier single-model policy for the new coaching feature only. Details and limitations are in `LIVE_COACH.md`.
+
+Live Coach validation: existing backend regressions and 13 coaching tests passed; 5 frontend tests and the production build passed. The real app received a locally synthesized spoken question, observed a synthetic camera, transcribed the question and streamed native Gemini speech with no browser errors. The final run counted one reply and saved the conversation after microphone mute/Finish. Actual ESP32 accuracy, an adult pilot and sustained ten-minute quota capacity remain unverified. The main local server is running; the isolated test-only UI server was stopped.
+
+Historical validation record: 8 October 2026. This is an implementation record, not a competition validation result.
+
+Model policy updated on 12 October 2026: all observation, finalization, clarification and assessment calls use `gemini-3.5-flash-lite` only. ER2 streaming and all model fallbacks were removed. Legacy environment overrides cannot change the model, and access/evaluation tools reject other identifiers. The earlier model checks below are historical; Flash-Lite physical-task accuracy still requires validation.
+
+Verification on 12 October: 44 backend tests and 2 frontend tests passed; API contracts regenerated and production build passed. Offline transport tests covered every AI role, rejected other model identifiers before transport, and verified that unavailable/quota/capacity errors make no fallback request. Both CLI tools rejected forbidden model arguments before inference. The local server was restarted and `/api/config` reported Flash-Lite for both physical and general processing. These checks made no Gemini API requests.
 
 | Capability | State |
 |---|---|

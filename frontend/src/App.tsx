@@ -63,6 +63,7 @@ import {
 } from "./api";
 import { acquire, useCapture } from "./capture";
 import { unresolved, reorder } from "./review";
+import LiveCoach from "./LiveCoach";
 
 function usePath() {
   const [path, setPath] = useState(location.pathname);
@@ -91,12 +92,48 @@ function Banner({
   tone?: string;
 }) {
   return (
-    <div className={`banner ${tone}`}>
+    <div
+      className={`banner ${tone}`}
+      role={tone === "error" ? "alert" : undefined}
+    >
       <AlertCircle size={17} />
       <div>{children}</div>
     </div>
   );
 }
+function RoutedLink({
+  href,
+  navigate,
+  className,
+  children,
+}: {
+  href: string;
+  navigate: (path: string) => void;
+  className: string;
+  children: ReactNode;
+}) {
+  return (
+    <a
+      href={href}
+      className={className}
+      onClick={(event) => {
+        if (
+          event.button !== 0 ||
+          event.metaKey ||
+          event.ctrlKey ||
+          event.shiftKey ||
+          event.altKey
+        )
+          return;
+        event.preventDefault();
+        navigate(href);
+      }}
+    >
+      {children}
+    </a>
+  );
+}
+
 function Empty({
   title,
   children,
@@ -196,6 +233,10 @@ function Login({
   }
   return (
     <div className="login-wrap">
+      <div className="login-art" aria-hidden="true">
+        <p className="welcome-wordmark">ShowOnce</p>
+        <p className="welcome-tagline">Learn by doing.</p>
+      </div>
       <div className="login-panel">
         <Logo />
 
@@ -235,6 +276,7 @@ function Login({
               Email
               <input
                 type="email"
+                name="email"
                 autoComplete="username"
                 required
                 value={email}
@@ -245,6 +287,7 @@ function Login({
               Password
               <input
                 type="password"
+                name="password"
                 autoComplete="current-password"
                 required
                 value={password}
@@ -341,18 +384,27 @@ function Library({
   const drafts = lessons.filter((l) => l.owned && !l.latest_version);
   return (
     <>
+      <section
+        className="electronics-welcome"
+        aria-label="ShowOnce learning workspace"
+      >
+        <p className="welcome-wordmark">ShowOnce</p>
+        <p className="welcome-tagline">Learn by doing.</p>
+        <button
+          className="button welcome-action"
+          onClick={() =>
+            navigate(user.role === "instructor" ? "/studio" : "/coach")
+          }
+        >
+          {user.role === "instructor"
+            ? "Record a demonstration"
+            : "Start live coaching"}
+        </button>
+      </section>
       <div className="page-heading library-heading">
         <div>
           <h1>Your lessons</h1>
         </div>
-        {user.role === "instructor" && (
-          <button
-            className="button primary"
-            onClick={() => navigate("/studio")}
-          >
-            <Plus size={18} /> Record a demonstration
-          </button>
-        )}
       </div>
       {error && (
         <Banner tone="error">
@@ -367,9 +419,6 @@ function Library({
           className="practice-feature"
           aria-labelledby="continue-heading"
         >
-          <h2 id="continue-heading">
-            {activePractice ? "Continue practising" : "Ready to practise"}
-          </h2>
           <div className="practice-feature-body">
             <div className="feature-media">
               <LessonPreview lesson={featured} />
@@ -385,6 +434,9 @@ function Library({
               )}
             </div>
             <div className="feature-copy">
+              <h2 id="continue-heading">
+                {activePractice ? "Continue practising" : "Ready to practise"}
+              </h2>
               <h3>{activePractice?.title || featured.title}</h3>
               <p className="feature-status">
                 {activePractice
@@ -392,19 +444,18 @@ function Library({
                   : `${featured.step_count} ${featured.step_count === 1 ? "step" : "steps"} · Published v${featured.latest_version}`}
               </p>
               {featured.summary && <p>{featured.summary}</p>}
-              <button
+              <RoutedLink
                 className="button primary"
-                onClick={() =>
-                  navigate(
-                    activePractice
-                      ? `/practice/${activePractice.id}`
-                      : `/lesson/${featured.id}`,
-                  )
+                navigate={navigate}
+                href={
+                  activePractice
+                    ? `/practice/${activePractice.id}`
+                    : `/lesson/${featured.id}`
                 }
               >
                 <Play size={17} />
                 {activePractice ? "Resume practice" : "Open lesson"}
-              </button>
+              </RoutedLink>
             </div>
           </div>
         </section>
@@ -427,60 +478,67 @@ function Library({
               />
             </label>
           </div>
-          <div className="task-filters" role="group" aria-label="Task type">
-            {(["all", "physical", "screen"] as const).map((type) => (
-              <button
-                key={type}
-                aria-pressed={taskType === type}
-                onClick={() => setTaskType(type)}
-              >
-                {type === "all"
-                  ? "All tasks"
-                  : type === "physical"
-                    ? "Physical tasks"
-                    : "On screen"}
-              </button>
-            ))}
-          </div>
-          <div className="library-toolbar">
-            <div
-              className="lesson-filters"
-              role="group"
-              aria-label="Filter lessons"
-            >
-              {(
-                [
-                  "all",
-                  "published",
-                  ...(user.role === "instructor" ? ["draft"] : []),
-                ] as const
-              ).map((value) => (
+          <div className="library-filter-bar">
+            <div className="task-filters" role="group" aria-label="Task type">
+              {(["all", "physical", "screen"] as const).map((type) => (
                 <button
-                  key={value}
-                  aria-pressed={filter === value}
-                  onClick={() => setFilter(value as typeof filter)}
+                  key={type}
+                  aria-pressed={taskType === type}
+                  onClick={() => setTaskType(type)}
                 >
-                  {value === "all"
-                    ? "All lessons"
-                    : value === "published"
-                      ? "Published"
-                      : "Drafts"}
-                  {!loading && (
-                    <span>
-                      {
-                        lessons.filter(
-                          (l) =>
-                            value === "all" ||
-                            (value === "published"
-                              ? !!l.latest_version
-                              : !l.latest_version),
-                        ).length
-                      }
-                    </span>
-                  )}
+                  {type === "all"
+                    ? "All tasks"
+                    : type === "physical"
+                      ? "Physical tasks"
+                      : "On screen"}
                 </button>
               ))}
             </div>
+            <div className="library-toolbar">
+              <div
+                className="lesson-filters"
+                role="group"
+                aria-label="Filter lessons"
+              >
+                {(
+                  [
+                    "all",
+                    "published",
+                    ...(user.role === "instructor" ? ["draft"] : []),
+                  ] as const
+                ).map((value) => (
+                  <button
+                    key={value}
+                    aria-pressed={filter === value}
+                    onClick={() => setFilter(value as typeof filter)}
+                  >
+                    {value === "all"
+                      ? "All lessons"
+                      : value === "published"
+                        ? "Published"
+                        : "Drafts"}
+                    {!loading && (
+                      <span>
+                        {
+                          lessons.filter(
+                            (l) =>
+                              value === "all" ||
+                              (value === "published"
+                                ? !!l.latest_version
+                                : !l.latest_version),
+                          ).length
+                        }
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="sr-only" role="status">
+              {!loading && !error
+                ? `${visibleLessons.length} ${visibleLessons.length === 1 ? "lesson" : "lessons"} shown`
+                : ""}
+            </p>
           </div>
           {loading ? (
             <div className="library-loading" role="status">
@@ -507,15 +565,14 @@ function Library({
           ) : (
             <div className="lesson-grid">
               {visibleLessons.map((l) => (
-                <button
+                <RoutedLink
                   className="lesson-card"
                   key={l.id}
-                  onClick={() =>
-                    navigate(
-                      l.owned && !l.latest_version
-                        ? "/review/" + l.id
-                        : "/lesson/" + l.id,
-                    )
+                  navigate={navigate}
+                  href={
+                    l.owned && !l.latest_version
+                      ? "/review/" + l.id
+                      : "/lesson/" + l.id
                   }
                 >
                   <span className="lesson-thumbnail">
@@ -548,7 +605,7 @@ function Library({
                     </span>
                     <ArrowRight size={17} />
                   </div>
-                </button>
+                </RoutedLink>
               ))}
             </div>
           )}
@@ -557,10 +614,11 @@ function Library({
           <aside className="review-queue" aria-labelledby="review-queue-title">
             <h2 id="review-queue-title">In review</h2>
             {drafts.slice(0, 3).map((l) => (
-              <button
+              <RoutedLink
                 key={l.id}
                 className="review-queue-entry"
-                onClick={() => navigate(`/review/${l.id}`)}
+                navigate={navigate}
+                href={`/review/${l.id}`}
               >
                 <span className="lesson-thumbnail">
                   <LessonPreview lesson={l} />
@@ -574,7 +632,7 @@ function Library({
                   </small>
                   <span className="review-link">Review draft</span>
                 </span>
-              </button>
+              </RoutedLink>
             ))}
           </aside>
         )}
@@ -1916,6 +1974,12 @@ function LessonView({
         </span>
       </div>
       <div className="lesson-toolbar">
+        <button
+          className="button secondary"
+          onClick={() => navigate(`/coach/${id}/${version.version}`)}
+        >
+          <Mic size={17} /> Practice with live voice
+        </button>
         <button className="button primary" onClick={() => setPracticing(true)}>
           <Play size={17} /> Start guided practice
         </button>
@@ -2086,8 +2150,9 @@ function Setup({ config }: { config: Config }) {
             </div>
           ))}
           <p className="fine">
-            No paid fallback is enabled. A missing connection is never replaced
-            with simulated AI.
+            Lesson generation and checkpoint checks use Gemini 3.5 Flash-Lite.
+            Live Coach uses {config.coach_model} for camera and spoken
+            conversation. There is no paid or alternate-model fallback.
           </p>
         </section>
         <section className="panel">
@@ -2107,6 +2172,16 @@ function Setup({ config }: { config: Config }) {
           <div className="connection-row">
             <span>Daily call guard</span>
             <strong>{config.daily_limit}</strong>
+          </div>
+          <div className="connection-row">
+            <span>Live Coach duration</span>
+            <strong>
+              {Math.floor(config.coach_limit_seconds / 60)} minutes
+            </strong>
+          </div>
+          <div className="connection-row">
+            <span>Live Coach token guard</span>
+            <strong>No session token cap</strong>
           </div>
           <div className="connection-row">
             <span>Concurrent live sessions</span>
@@ -2289,6 +2364,40 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState("");
   const [mobileMenu, setMobileMenu] = useState(false);
+  const menuTrigger = useRef<HTMLButtonElement>(null);
+  const menuWasOpen = useRef(false);
+  useEffect(() => {
+    if (mobileMenu)
+      document
+        .querySelector<HTMLButtonElement>("#main-navigation button")
+        ?.focus();
+    else if (menuWasOpen.current) menuTrigger.current?.focus();
+    menuWasOpen.current = mobileMenu;
+  }, [mobileMenu]);
+  useEffect(() => {
+    const title = path.startsWith("/coach")
+      ? "Live Coach"
+      : path.startsWith("/capture/")
+        ? "Phone camera"
+        : !user
+          ? "Sign in"
+          : path.startsWith("/review/")
+            ? "Lesson review"
+            : path.startsWith("/practice/")
+              ? "Practice"
+              : path.startsWith("/lesson/")
+                ? "Published lesson"
+                : path.startsWith("/studio")
+                  ? "Demonstration studio"
+                  : path === "/settings"
+                    ? "Connection and validation"
+                    : "Your lessons";
+    document.title = `${title} | ShowOnce`;
+    document
+      .querySelector<HTMLElement>("#main-content")
+      ?.focus({ preventScroll: true });
+    window.scrollTo(0, 0);
+  }, [path, user?.id]);
   useEffect(() => {
     const close = (event: KeyboardEvent) => {
       if (event.key === "Escape") setMobileMenu(false);
@@ -2320,9 +2429,11 @@ export default function App() {
   if (!user) return <Login config={config} onLogin={setUser} />;
   const section = path.startsWith("/studio")
     ? "studio"
-    : path === "/settings"
-      ? "settings"
-      : "library";
+    : path.startsWith("/coach")
+      ? "coach"
+      : path === "/settings"
+        ? "settings"
+        : "library";
   const go = (p: string) => {
     setMobileMenu(false);
     navigate(p);
@@ -2336,6 +2447,13 @@ export default function App() {
         <Logo />
         <span className="workspace-label">Workspace</span>
         <nav aria-label="Main navigation" id="main-navigation">
+          <button
+            aria-current={section === "coach" ? "page" : undefined}
+            className={section === "coach" ? "active" : ""}
+            onClick={() => go("/coach")}
+          >
+            <Mic size={18} /> Live Coach
+          </button>
           <button
             aria-current={section === "library" ? "page" : undefined}
             className={section === "library" ? "active" : ""}
@@ -2397,6 +2515,7 @@ export default function App() {
           </span>
           <button
             className="icon-button mobile-menu"
+            ref={menuTrigger}
             aria-label={mobileMenu ? "Close navigation" : "Open navigation"}
             aria-expanded={mobileMenu}
             aria-controls="main-navigation"
@@ -2409,17 +2528,19 @@ export default function App() {
           </button>
           <span>
             <strong>
-              {path.startsWith("/review/")
-                ? "Lesson review"
-                : path.startsWith("/practice/")
-                  ? "Practice"
-                  : path.startsWith("/lesson/")
-                    ? "Published lesson"
-                    : section === "studio"
-                      ? "Demonstration studio"
-                      : section === "settings"
-                        ? "Connection & validation"
-                        : "Lesson library"}
+              {section === "coach"
+                ? "Live Coach"
+                : path.startsWith("/review/")
+                  ? "Lesson review"
+                  : path.startsWith("/practice/")
+                    ? "Practice"
+                    : path.startsWith("/lesson/")
+                      ? "Published lesson"
+                      : section === "studio"
+                        ? "Demonstration studio"
+                        : section === "settings"
+                          ? "Connection & validation"
+                          : "Lesson library"}
             </strong>
           </span>
           <div>
@@ -2442,7 +2563,14 @@ export default function App() {
           </div>
         </header>
         <main id="main-content" tabIndex={-1}>
-          {path.startsWith("/review/") ? (
+          {path.startsWith("/coach") ? (
+            <LiveCoach
+              key={path}
+              config={config}
+              lessonId={path.split("/")[2]}
+              versionNumber={Number(path.split("/")[3]) || undefined}
+            />
+          ) : path.startsWith("/review/") ? (
             <Review
               id={path.split("/")[2]}
               navigate={navigate}

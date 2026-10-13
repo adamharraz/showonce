@@ -100,8 +100,10 @@ p {
   background: #f4f1e9;
   color: #253c33;
 }
-.sidebar nav button:hover:not(.active) {
-  background: #345045;
+@media (hover: hover) {
+  .sidebar nav button:hover:not(.active) {
+    background: #345045;
+  }
 }
 .sidebar-bottom {
   border-color: #52675b;
@@ -160,16 +162,20 @@ p {
   color: #fffdf8;
   box-shadow: none;
 }
-.button.primary:hover:not(:disabled) {
-  background: var(--accent-hover);
+@media (hover: hover) {
+  .button.primary:hover:not(:disabled) {
+    background: var(--accent-hover);
+  }
 }
 .button.secondary {
   background: var(--surface);
   border-color: var(--rule);
   color: var(--ink);
 }
-.button.secondary:hover:not(:disabled) {
-  background: #e8ece3;
+@media (hover: hover) {
+  .button.secondary:hover:not(:disabled) {
+    background: #e8ece3;
+  }
 }
 .text-button {
   color: var(--accent);
@@ -179,8 +185,10 @@ p {
   color: var(--quiet);
   border-radius: 3px;
 }
-.icon-button:hover {
-  background: #e5e8dd;
+@media (hover: hover) {
+  .icon-button:hover {
+    background: #e5e8dd;
+  }
 }
 .danger,
 .icon-button.danger {
@@ -228,8 +236,10 @@ a:focus-visible {
   color: #264c3e;
   font-weight: 600;
 }
-.lesson-filters button:hover {
-  background: #e7eade;
+@media (hover: hover) {
+  .lesson-filters button:hover {
+    background: #e7eade;
+  }
 }
 .lesson-filters span {
   font-variant-numeric: tabular-nums;
@@ -252,10 +262,12 @@ a:focus-visible {
   background: transparent;
   border-color: var(--rule);
 }
-.lesson-card:hover {
-  background: #e9ece1;
-  border-color: var(--rule);
-  transform: none;
+@media (hover: hover) {
+  .lesson-card:hover {
+    background: #e9ece1;
+    border-color: var(--rule);
+    transform: none;
+  }
 }
 .lesson-index {
   grid-column: 1;
@@ -373,8 +385,10 @@ a:focus-visible {
   gap: 16px;
   border-color: var(--rule);
 }
-.session-list button:hover {
-  background: #e9ece1;
+@media (hover: hover) {
+  .session-list button:hover {
+    background: #e9ece1;
+  }
 }
 .session-list .stat-icon {
   background: none;

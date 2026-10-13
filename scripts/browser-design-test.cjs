@@ -91,6 +91,13 @@ let browser;
     .click();
   await page.locator(".lesson-card").first().waitFor();
   await inspect("library");
+  await page.getByRole("button", { name: "Live Coach", exact: true }).click();
+  await page.getByRole("region", { name: "Component library" }).waitFor();
+  await inspect("coach");
+  await page
+    .getByRole("button", { name: "Lesson library", exact: true })
+    .click();
+  await page.locator(".lesson-card").first().waitFor();
   checks.push("Instructor login opens saved lesson library.");
   const count = await page.locator(".lesson-card").count();
   await page

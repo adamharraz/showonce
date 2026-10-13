@@ -66,7 +66,7 @@ let browser;
     });
   }
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.getByRole("button", { name: "Open lesson", exact: true }).click();
+  await page.getByRole("link", { name: "Open lesson", exact: true }).click();
   await page
     .getByRole("button", { name: "Start guided practice", exact: true })
     .waitFor();
@@ -95,14 +95,14 @@ let browser;
   try {
     await page.goto("http://127.0.0.1:8001/");
     await page
-      .getByRole("button", { name: "Resume practice", exact: true })
+      .getByRole("link", { name: "Resume practice", exact: true })
       .waitFor();
     await page.screenshot({
       path: "artifacts/ui/demonstrations-resume-1440.png",
       fullPage: true,
     });
     await page
-      .getByRole("button", { name: "Resume practice", exact: true })
+      .getByRole("link", { name: "Resume practice", exact: true })
       .click();
     await page
       .getByRole("heading", { name: session.title, exact: true })

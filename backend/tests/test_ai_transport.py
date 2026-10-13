@@ -4,22 +4,19 @@ import httpx
 import pytest
 from google import genai
 from google.genai import types
-from app.ai import Gemini
-from app.config import Settings
+from app.ai import AIError, Gemini
+from app.config import MODEL, Settings
 from app.models import ObservationBatch, LessonDraft, AssessmentOutput
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('model', ['gemini-3.8-flash', 'gemini-2.5-flash'])
-async def test_structured_adapter_uses_supported_wire_schema(model, tmp_path):
+async def test_structured_adapter_uses_supported_wire_schema(tmp_path):
+    model = MODEL
     payload = json.dumps({'task_title': 'Transport check', 'observations': []})
     requests = []
     def respond(request):
         requests.append(request)
         body = json.loads(request.content)
-        if model.startswith('gemini-2.5'):
-            assert 'responseSchema' not in body['generationConfig']
-            assert body['generationConfig']['responseJsonSchema']['additionalProperties'] is False
-            return httpx.Response(200, json={'candidates': [{'content': {'role': 'model', 'parts': [{'text': payload}]}}]})
+        assert body['model'] == MODEL
         assert body['response_format']['type'] == 'text'
         assert body['response_format']['schema']['additionalProperties'] is False
         assert '$defs' not in body['response_format']['schema']
@@ -74,7 +71,7 @@ async def test_full_local_validation_rejects_invalid_model_output(payload, tmp_p
             await ai.client.aio.aclose()
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('status, code', [(429, 'quota'), (503, 'model_busy')])
+@pytest.mark.parametrize('status, code', [(403, 'model_unavailable'), (404, 'model_unavailable'), (429, 'quota'), (503, 'model_busy')])
 async def test_request_failure_is_classified_without_hidden_retries(status, code, tmp_path):
     requests = []
     def respond(request):
@@ -86,8 +83,66 @@ async def test_request_failure_is_classified_without_hidden_retries(status, code
         try:
             from app.ai import AIError
             with pytest.raises(AIError) as error:
-                await ai.structured('gemini-3.8-flash', 'Extract visible evidence.', 'Synthetic test.', ObservationBatch)
+                await ai.general('Extract visible evidence.', 'Synthetic test.', ObservationBatch)
             assert error.value.code == code
             assert len(requests) == 1
+        finally:
+            await ai.client.aio.aclose()
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('model', ['gemini-3.8-flash', 'gemini-robotics-er-2-preview', 'gemini-robotics-er-2-streaming-preview'])
+async def test_other_models_are_rejected_before_any_request(model, tmp_path):
+    requests = []
+    def respond(request):
+        requests.append(request)
+        raise AssertionError('A forbidden model must never reach the transport')
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as transport:
+        ai = Gemini(Settings(data_dir=tmp_path, gemini_key='offline-test-key', free_tier_confirmed=True))
+        ai.client = genai.Client(api_key='offline-test-key', http_options=types.HttpOptions(httpx_async_client=transport))
+        try:
+            with pytest.raises(AIError) as error:
+                await ai.structured(model, 'Use supplied evidence.', 'Synthetic test.', ObservationBatch)
+            assert error.value.code == 'model_not_allowed'
+            assert requests == []
+        finally:
+            await ai.client.aio.aclose()
+
+def test_legacy_environment_cannot_select_another_model(monkeypatch, tmp_path):
+    for key in ('GENERAL_MODEL', 'GENERAL_FALLBACK_MODEL', 'PHYSICAL_ASSESSOR'):
+        monkeypatch.setenv(key, 'gemini-3.8-flash')
+    monkeypatch.setenv('PHYSICAL_OBSERVER', 'er2')
+    settings = Settings(data_dir=tmp_path, gemini_key='')
+    assert settings.general_model == MODEL
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('operation', ['observe', 'finalize', 'revise', 'physical_assessment', 'screen_assessment'])
+async def test_every_ai_role_uses_flash_lite(operation, tmp_path):
+    if operation == 'observe':
+        payload = {'task_title': 'Test activity', 'observations': []}
+    elif operation in ('finalize', 'revise'):
+        payload = {'title': 'Test lesson', 'steps': []}
+    else:
+        payload = {'outcome': 'clearer_view', 'explanation': 'More evidence is needed.', 'evidence_ids': [], 'criteria': []}
+    requests = []
+    def respond(request):
+        requests.append(request)
+        body = json.loads(request.content)
+        assert body['model'] == MODEL
+        return httpx.Response(200, json={'id': 'offline-interaction', 'status': 'completed',
+            'steps': [{'type': 'model_output', 'content': [{'type': 'text', 'text': json.dumps(payload)}]}]})
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as transport:
+        ai = Gemini(Settings(data_dir=tmp_path, gemini_key='offline-test-key', free_tier_confirmed=True))
+        ai.client = genai.Client(api_key='offline-test-key', http_options=types.HttpOptions(httpx_async_client=transport))
+        try:
+            if operation == 'observe':
+                await ai.observe([], [], b'')
+            elif operation == 'finalize':
+                await ai.finalize([], [], [])
+            elif operation == 'revise':
+                await ai.revise({'title': 'Test lesson', 'steps': []}, [])
+            else:
+                await ai.assess({'criteria': []}, [], [], operation == 'physical_assessment')
+            assert len(requests) == 1
+            assert ai.actual_model == MODEL
         finally:
             await ai.client.aio.aclose()
