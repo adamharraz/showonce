@@ -50,9 +50,8 @@ export default function ComponentPanel({
     <section className="panel component-panel" aria-label="Component library">
       <div className="component-heading">
         <div>
-          <span className="eyebrow">COMPONENT LIBRARY</span>
           <h3>
-            <Box size={18} /> Your parts, in 3D.
+            <Box size={18} /> Component library
           </h3>
         </div>
         <button
@@ -65,9 +64,8 @@ export default function ComponentPanel({
         </button>
       </div>
       <p className="fine">
-        Gemini identifies visible components; ShowOnce loads prepared reference
-        models. Confirm the identity and board variant before using details.
-        Placement and wiring are illustrative.
+        Reference models do not verify your physical board or wiring. Confirm
+        the part and board variant before using pin details.
       </p>
       {notice && (
         <p className="component-notice" role="status">
@@ -102,8 +100,7 @@ export default function ComponentPanel({
           )}
           <div className="component-catalogue">
             <p className="fine">
-              Browse ESP32, breadboard, LED, resistor and wire references at any
-              time. Browsing uses no AI calls or GPU generation.
+              Browse references without starting a session.
               {!scene.components.length &&
                 " Start live coaching to identify your visible parts."}
             </p>

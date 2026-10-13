@@ -45,16 +45,18 @@ let browser;
   if (response.headers()["x-showonce-test-fixture"] !== "true")
     throw new Error("Refusing to test against an unmarked model server");
   await inspectLayout("login");
+  await page.getByRole("checkbox", { name: /I am 18/ }).check();
+  await page.getByRole("button", { name: "Continue to ShowOnce", exact: true }).click();
   await page.getByRole("button", { name: /instructor/i }).click();
   await inspectLayout("library-empty");
   await page
-    .getByRole("button", { name: "Demonstration studio", exact: true })
+    .getByRole("button", { name: "Create a lesson", exact: true })
     .click();
   await inspectLayout("capture-setup");
-  await page.getByRole("checkbox", { name: /18\+/ }).check();
   await page
     .getByRole("button", { name: "Start demonstration", exact: true })
     .click();
+  await page.getByRole("button", { name: "Confirm and start", exact: true }).click();
   await page.waitForTimeout(2500);
   await page.getByRole("button", { name: /Finish & review/i }).click();
   await page.getByRole("heading", { name: "Review lesson" }).waitFor();
@@ -103,10 +105,10 @@ let browser;
   await page
     .getByRole("button", { name: "Start guided practice", exact: true })
     .click();
-  await page.getByRole("checkbox", { name: /18\+/ }).check();
   await page
     .getByRole("button", { name: "Start practice", exact: true })
     .click();
+  await page.getByRole("button", { name: "Confirm and start", exact: true }).click();
   await page.waitForTimeout(2500);
   await inspectLayout("practice");
   await page
@@ -127,7 +129,7 @@ let browser;
     .getByRole("button", { name: "Open navigation", exact: true })
     .click();
   await page
-    .getByRole("button", { name: "Connection & validation", exact: true })
+    .getByRole("button", { name: "Settings", exact: true })
     .click();
   await inspectLayout("settings");
   fs.writeFileSync(

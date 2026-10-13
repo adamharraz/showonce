@@ -1,5 +1,9 @@
 # Component catalogue and viewer
 
+## Interface typography
+
+Nunito variable font is bundled from the official Google Fonts repository at https://github.com/google/fonts/tree/main/ofl/nunito. It is licensed under the SIL Open Font License 1.1; the complete licence is included at `frontend/src/assets/fonts/OFL.txt`. Nunito provides the rounded typography inspired by the user's references; it is not claimed to be Duolingo's proprietary font.
+
 ## Imported ESP32 Wroom model
 
 “ESP32 Wroom” by **TER1Z**, source: https://sketchfab.com/3d-models/esp32-wroom-fd714190aacc4e3f9c26b8d7e27807fc, author: https://sketchfab.com/TER1Z. Licensed under **Creative Commons Attribution 4.0 International (CC BY 4.0)**: https://creativecommons.org/licenses/by/4.0/ . Licence verified via Sketchfab's public model API on 13 October 2026.

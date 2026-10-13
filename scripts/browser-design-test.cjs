@@ -20,6 +20,8 @@ let browser;
   page.on("pageerror", (e) => errors.push(e.message));
   const response = await page.goto("http://127.0.0.1:8001");
   assert.equal(response.headers()["x-showonce-test-fixture"], "true");
+  await page.getByRole("checkbox", { name: /I am 18/ }).check();
+  await page.getByRole("button", { name: "Continue to ShowOnce", exact: true }).click();
   async function inspect(name) {
     await page.waitForTimeout(250);
     const result = await page.evaluate(() => {
@@ -157,9 +159,11 @@ let browser;
     await page
       .getByRole("button", { name: "Start demonstration", exact: true })
       .isEnabled(),
-    false,
+    true,
   );
-  await page.getByRole("checkbox", { name: /18\+/ }).check();
+  await page.getByRole("button", { name: "Start demonstration", exact: true }).click();
+  await page.getByRole("dialog", { name: "Before you start" }).waitFor();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
   assert.equal(
     await page
       .getByRole("button", { name: "Start demonstration", exact: true })
@@ -259,7 +263,7 @@ let browser;
     .focus();
   await page.keyboard.press("Enter");
   await page
-    .getByRole("button", { name: "Connection & validation", exact: true })
+    .getByRole("button", { name: "Settings", exact: true })
     .click();
   checks.push(
     "Mobile menu opens with Enter, closes with Escape and navigates to settings.",
@@ -273,7 +277,7 @@ let browser;
   await page.locator(".lesson-card").first().waitFor();
   assert.equal(
     await page
-      .getByRole("button", { name: "Demonstration studio", exact: true })
+      .getByRole("button", { name: "Create a lesson", exact: true })
       .count(),
     0,
   );

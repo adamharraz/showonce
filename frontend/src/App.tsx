@@ -64,6 +64,7 @@ import {
 import { acquire, useCapture } from "./capture";
 import { unresolved, reorder } from "./review";
 import LiveCoach from "./LiveCoach";
+import EntryConsent from "./EntryConsent";
 
 function usePath() {
   const [path, setPath] = useState(location.pathname);
@@ -401,11 +402,6 @@ function Library({
             : "Start live coaching"}
         </button>
       </section>
-      <div className="page-heading library-heading">
-        <div>
-          <h1>Your lessons</h1>
-        </div>
-      </div>
       {error && (
         <Banner tone="error">
           {error}{" "}
@@ -467,7 +463,7 @@ function Library({
       >
         <section className="library-main" aria-labelledby="library-title">
           <div className="library-section-heading">
-            <h2 id="library-title">Lesson library</h2>
+            <h1 id="library-title">Lesson library</h1>
             <label className="lesson-search">
               <span className="sr-only">Search lessons</span>
               <input
@@ -545,23 +541,9 @@ function Library({
               Loading your lessons…
             </div>
           ) : error ? null : !visibleLessons.length ? (
-            <div className="library-empty">
-              <Empty
-                title={
-                  lessons.length
-                    ? "No lessons in this view"
-                    : user.role === "instructor"
-                      ? "A lesson begins with something you know."
-                      : "Your next lesson is on its way."
-                }
-              >
-                {lessons.length
-                  ? "Try another search or filter."
-                  : user.role === "instructor"
-                    ? "Record a physical task or share your screen. You review the steps before anyone practices."
-                    : "Your instructor's published lessons will appear here."}
-              </Empty>
-            </div>
+            <p className="fine" role="status">
+              {lessons.length ? "No matching lessons." : "No lessons yet."}
+            </p>
           ) : (
             <div className="lesson-grid">
               {visibleLessons.map((l) => (
@@ -738,7 +720,6 @@ function Live({
 }) {
   const [source, setSource] = useState<Source>("camera");
   const [microphone, setMicrophone] = useState(true);
-  const [consent, setConsent] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const sessionRef = useRef(session);
   sessionRef.current = session;
@@ -930,7 +911,12 @@ function Live({
       setError((e as Error).message);
     }
   }
-  async function start() {
+  const captureConsent = useRef<HTMLDialogElement>(null);
+  async function start(confirmed = false) {
+    if (!confirmed) {
+      captureConsent.current?.showModal();
+      return;
+    }
     setError("");
     setBusy(true);
     let media: MediaStream | null = null;
@@ -1058,17 +1044,41 @@ function Live({
       <div className="page-heading">
         <div>
           <h1>{practice ? practice.draft.title : "New demonstration"}</h1>
-          <p>
-            {practice
-              ? "Follow each step and compare your work with the reference."
-              : "Capture a physical task or share your screen. Review before publishing."}
-          </p>
+          {practice && (
+            <p>Follow each step and compare your work with the reference.</p>
+          )}
         </div>
         <span className="badge">
           <Clock3 size={14} /> {practice ? "10" : "5"} minute session
         </span>
       </div>
       {error && <Banner tone="error">{error}</Banner>}
+      <dialog
+        ref={captureConsent}
+        className="capture-consent-dialog"
+        aria-labelledby="capture-consent-title"
+      >
+        <h2 id="capture-consent-title">Before you start</h2>
+        <p>
+          Everyone captured must be 18+ and consent to Google processing the
+          media. Keep private information off screen.
+        </p>
+        <form method="dialog">
+          <button className="button secondary" autoFocus>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="button primary"
+            onClick={() => {
+              captureConsent.current?.close();
+              void start(true);
+            }}
+          >
+            Confirm and start
+          </button>
+        </form>
+      </dialog>
       {notice && <Banner>{notice}</Banner>}
       {(!config.ai_configured || !config.free_tier_confirmed) && (
         <Banner tone="warning">
@@ -1095,19 +1105,10 @@ function Live({
                   <Mic size={16} /> Include natural narration
                 </label>
               )}
-              <label className="checkbox consent">
-                <input
-                  type="checkbox"
-                  checked={consent}
-                  onChange={(e) => setConsent(e.target.checked)}
-                />{" "}
-                Everyone captured is 18+ and consents to Google processing the
-                media. I will keep private information off screen.
-              </label>
             </div>
             <button
               className="button primary"
-              disabled={!consent || busy}
+              disabled={busy}
               onClick={() => void start()}
             >
               <Play size={17} />
@@ -2130,7 +2131,7 @@ function Setup({ config }: { config: Config }) {
     <>
       <div className="page-heading">
         <div>
-          <h1>Connection & validation</h1>
+          <h1>Settings</h1>
           <p>Check service connections and prototype limits.</p>
         </div>
       </div>
@@ -2358,6 +2359,9 @@ function PhoneCapture({ id }: { id: string }) {
 }
 
 export default function App() {
+  const [entryConsent, setEntryConsent] = useState(
+    () => sessionStorage.getItem("showonce-entry-consent-v1") === "accepted",
+  );
   const [path, navigateRaw] = usePath();
   const navigate = useCallback((p: string) => navigateRaw(p), [navigateRaw]);
   const [config, setConfig] = useState<Config | null>(null);
@@ -2388,7 +2392,7 @@ export default function App() {
               : path.startsWith("/lesson/")
                 ? "Published lesson"
                 : path.startsWith("/studio")
-                  ? "Demonstration studio"
+                  ? "Create a lesson"
                   : path === "/settings"
                     ? "Connection and validation"
                     : "Your lessons";
@@ -2426,6 +2430,15 @@ export default function App() {
     );
   if (path.startsWith("/capture/"))
     return <PhoneCapture id={path.split("/")[2]} />;
+  if (!entryConsent)
+    return (
+      <EntryConsent
+        onContinue={() => {
+          sessionStorage.setItem("showonce-entry-consent-v1", "accepted");
+          setEntryConsent(true);
+        }}
+      />
+    );
   if (!user) return <Login config={config} onLogin={setUser} />;
   const section = path.startsWith("/studio")
     ? "studio"
@@ -2467,7 +2480,7 @@ export default function App() {
               className={section === "studio" ? "active" : ""}
               onClick={() => go("/studio")}
             >
-              <Video size={18} /> Demonstration studio
+              <Video size={18} /> Create a lesson
             </button>
           )}
           <button
@@ -2475,7 +2488,7 @@ export default function App() {
             className={section === "settings" ? "active" : ""}
             onClick={() => go("/settings")}
           >
-            <Settings2 size={18} /> Connection & validation
+            <Settings2 size={18} /> Settings
           </button>
         </nav>
 
@@ -2501,6 +2514,8 @@ export default function App() {
               void logoutHostedAuth(config);
               setToken("");
               setUser(null);
+              sessionStorage.removeItem("showonce-entry-consent-v1");
+              setEntryConsent(false);
               navigate("/");
             }}
           >
@@ -2526,23 +2541,6 @@ export default function App() {
               {mobileMenu ? "Close" : "Menu"}
             </span>
           </button>
-          <span>
-            <strong>
-              {section === "coach"
-                ? "Live Coach"
-                : path.startsWith("/review/")
-                  ? "Lesson review"
-                  : path.startsWith("/practice/")
-                    ? "Practice"
-                    : path.startsWith("/lesson/")
-                      ? "Published lesson"
-                      : section === "studio"
-                        ? "Demonstration studio"
-                        : section === "settings"
-                          ? "Connection & validation"
-                          : "Lesson library"}
-            </strong>
-          </span>
           <div>
             <span
               className={
@@ -2565,6 +2563,7 @@ export default function App() {
         <main id="main-content" tabIndex={-1}>
           {path.startsWith("/coach") ? (
             <LiveCoach
+              consent={entryConsent}
               key={path}
               config={config}
               lessonId={path.split("/")[2]}
