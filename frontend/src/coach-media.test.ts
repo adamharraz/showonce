@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { bytesToBase64, decodePcm, pcm16 } from "./coach-media";
+import {
+  bytesToBase64,
+  decodePcm,
+  pcm16,
+  CoachAudioQueue,
+} from "./coach-media";
 
 describe("native live audio transport", () => {
   it("resamples microphone audio to mono 16kHz little-endian PCM", () => {
@@ -22,5 +27,25 @@ describe("native live audio transport", () => {
     expect(
       Array.from(decodePcm(data.replaceAll("/", "_").replaceAll("+", "-"))),
     ).toEqual([32767 / 32768]);
+  });
+  it("paces a delayed microphone backlog instead of bursting it to the server", () => {
+    const queue = new CoachAudioQueue();
+    let dropped = false;
+    for (let i = 0; i < 100; i++)
+      dropped = queue.push(new Uint8Array(1280)) || dropped;
+    expect(dropped).toBe(true);
+    const sent: Uint8Array[] = [];
+    queue.drain(1000, (bytes) => sent.push(bytes));
+    expect(sent.reduce((n, b) => n + b.length, 0)).toBeLessThanOrEqual(3200);
+    queue.drain(6000, (bytes) => sent.push(bytes));
+    expect(sent.reduce((n, b) => n + b.length, 0)).toBeLessThanOrEqual(6400);
+  });
+  it("clears pending speech when sharing is paused or muted", () => {
+    const queue = new CoachAudioQueue();
+    queue.push(new Uint8Array(1280));
+    queue.clear();
+    let sent = 0;
+    queue.drain(5000, () => sent++);
+    expect(sent).toBe(0);
   });
 });

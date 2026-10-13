@@ -1,5 +1,7 @@
 # Component references — 13 October 2026
 
+**Historical workflow:** the main 3D interface was subsequently replaced with the Modal photo-to-3D flow documented in `PHOTO_TO_3D.md`. The original catalogue source and owner-only metadata endpoints remain for historical records; this page describes the earlier interface.
+
 Open `/coach`. Before starting, browse the ESP32, breadboard, LED, axial resistor and jumper-wire reference models. Rotate/zoom with the mouse or touch. Model rendering runs locally in the browser with Three.js; it requires no GPU hosting, mesh-generation API or additional cash spending.
 
 During a live session, show the components clearly and choose **Identify visible parts**. One current snapshot is attached to an ordered turn on the existing `gemini-3.8-live` connection. The model selects supported catalogue IDs through `show_components`. The server validates the IDs, evidence source, requested frame ID, freshness and scene revision before replacing the inventory. Unsupported objects can use an explicit unknown placeholder. The model can ask clarification questions; it cannot confirm an exact board variant or mark lesson checkpoints passed.

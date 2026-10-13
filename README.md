@@ -4,7 +4,9 @@ One live demonstration becomes a reviewed, reusable lesson. Students then practi
 
 ## Current delivery
 
-13 October update: Live Coach now includes a five-family component catalogue and interactive 3D reference models, grounded live snapshot inspection, manual corrections and confirmed-variant pin highlighting. The 200,000-token coaching cap has been removed; usage is still logged. See [component library](docs/COMPONENT_LIBRARY.md) for operation and validation limits.
+Latest 13 October update: the main 3D workflow now captures a build photo, generates a textured GLB with Stable Fast 3D on a private Modal GPU worker, then offers rotation/download and saved-model history. The worker is deployed; Hugging Face model access still needs attaching before real generation can be enabled. See [photo-to-3D setup and validation](docs/PHOTO_TO_3D.md). Live microphone backlog is now paced, and delivery bursts report a gap instead of closing the session.
+
+Earlier 13 October implementation: the five-family component reference catalogue has been superseded in the main interface by photo-to-3D. Its original source/metadata remain available for historical records. The 200,000-token coaching cap remains removed; usage is still logged.
 
 Implemented: React/TypeScript capture and review app, FastAPI backend, webcam/screen/phone capture, temporary narration, windowed Gemini 3.5 Flash-Lite analysis, live camera/voice coaching with a side-by-side assistant, persistent observation ledger, clarification and editing, immutable published versions, practice feedback guards, private evidence, exports, failure recovery, free-tier controls, deployment configuration and evaluation tools.
 

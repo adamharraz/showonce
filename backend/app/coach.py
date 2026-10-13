@@ -116,6 +116,7 @@ class CoachSession:
         self.latest_frame = None
         self.last_frame = self.last_audio = self.last_text = 0.
         self.audio_window, self.audio_bytes = time.monotonic(), 0
+        self.audio_overflow_notified = False
         self.started = time.monotonic()
         self.pending = {'user': '', 'assistant': ''}
         self.response_started = False
@@ -415,11 +416,19 @@ class CoachSession:
                 raise ValueError('Audio must be mono 16kHz PCM in chunks up to 200ms')
             if clock - self.audio_window >= 1:
                 self.audio_window, self.audio_bytes = clock, 0
+                self.audio_overflow_notified = False
             self.audio_bytes += len(raw)
             if self.audio_bytes > 96000:
-                raise ValueError('Audio upload exceeded the live rate limit')
+                if not self.audio_overflow_notified:
+                    self.audio_overflow_notified = True
+                    await self.forward('audio_end',None)
+                    await self.emit('notice',message='Microphone audio arrived too quickly after a delay. Some audio was skipped; please repeat your last phrase. Camera sharing is continuing.')
+                return
             self.last_audio = clock
             await self.forward('audio', raw)
+        elif kind == 'audio_gap':
+            await self.forward('audio_end',None)
+            await self.emit('notice',message='Microphone audio was briefly delayed. Please repeat your last phrase; camera sharing is continuing.')
         elif kind == 'text':
             if self.inspecting_turn:
                 await self.emit('component_notice', message='Let the snapshot inspection finish before sending another question.'); return
@@ -558,17 +567,22 @@ class CoachManager:
                 await ws.close(code=1008)
         finally:
             if coach:
-                try:
-                    await coach.close()
-                except (RuntimeError, WebSocketDisconnect):
-                    # The transcript still needs saving after the browser has gone.
-                    await coach.save()
-                if self.active is coach:
-                    self.active = None
+                # A browser/test client may cancel its ASGI task while cleanup
+                # awaits upstream I/O. Keep cleanup alive outside that task.
+                await asyncio.shield(self.finish_socket(coach))
             try:
                 await ws.close()
             except RuntimeError:
                 pass
+
+    async def finish_socket(self, coach):
+        try:
+            await coach.close()
+        except (RuntimeError, WebSocketDisconnect):
+            await coach.save()
+        finally:
+            if self.active is coach:
+                self.active = None
 
     def register(self, app, user):
         app.websocket('/api/coaching/stream')(self.socket)

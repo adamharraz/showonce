@@ -1,5 +1,9 @@
 # Implementation status
 
+Latest 13 October: primary 3D workflow replaced with one-photo SF3D reconstruction on a private Modal A10 worker, private persisted jobs, GLB viewer/download and saved history. The Modal app is deployed and its CPU readiness check passed. Hugging Face access/Secret is still missing, so real GPU inference remains disabled and unvalidated. See `PHOTO_TO_3D.md` for activation steps and limits. No paid billing/payment method was enabled; the owner confirmed US$0 net spend and sufficient credits.
+
+Current regression validation: 80 backend tests, seven frontend tests, generated contracts and production build passed. New isolated browser checks passed photo capture/consent, asynchronous GLB jobs, loading/download, saved models and desktop/mobile layout. The test GLB is explicitly synthetic. Microphone pacing plus a nonfatal burst guard prevents normal audio backlog from closing camera sharing; async disconnect cleanup releases its session slot.
+
 13 October: implemented the local five-family 3D component catalogue with Gemini Live snapshot/tool recognition, owner-only versioned corrections, explicit unknown values/variants and reference pin highlighting after board confirmation. Real Live integration on a synthetic drawing returned an LED and uncertain resistor with no invented value. Physical recognition remains unvalidated; details are in `COMPONENT_LIBRARY.md`.
 
 Current automated validation: **67 backend tests**, **5 frontend tests**, regenerated API contracts and production build passed. Component UI checks passed with a synthetic camera and isolated fixture, including 3D rendering, pinout withholding, manual corrections and mobile layout. The real Live snapshot gate passed with one completed reply reporting 2,100 tokens. Services remain free-tier guarded; no new hosting or billing was configured.

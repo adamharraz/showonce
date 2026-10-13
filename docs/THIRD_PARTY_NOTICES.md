@@ -1,6 +1,8 @@
 # Component catalogue and viewer
 
-The five procedural 3D reference models in `frontend/src/component-models.ts` are original ShowOnce code. No Relay, Fritzing, KiCad or Stability AI mesh/model is bundled. Three.js is an MIT-licensed dependency; its licence is included in its installed package.
+The five historical procedural 3D reference models in `frontend/src/component-models.ts` are original ShowOnce code. No Relay, Fritzing, KiCad or Stability AI mesh/model is bundled in this source repository. Three.js is an MIT-licensed dependency; its licence is included in its installed package.
+
+The Modal worker installs the official Stable Fast 3D source and, after Hugging Face access is supplied, downloads its gated model weights. These are subject to Stability AI's model licence, linked from https://huggingface.co/stabilityai/stable-fast-3d. The cloned worker source retains upstream licence files. No Relay source code was copied for the new workflow.
 
 The ESP32 DevKit V1 header order is adapted from `wokwi-elements/src/esp32-devkit-v1-element.ts` at revision `72d8b5b1f472121987d8c74b60a0e7a5d756c54c`. It is reference metadata for that specific 30-pin layout, not every ESP32/WROOM board.
 

@@ -26,6 +26,11 @@ export interface Config {
   coach_model: string;
   coach_enabled: boolean;
   coach_limit_seconds: number;
+  twin_enabled: boolean;
+  twin_free_confirmed: boolean;
+  twin_model: string;
+  twin_daily_limit: number;
+  twin_total_limit: number;
   app_origin: string;
 }
 export interface User {

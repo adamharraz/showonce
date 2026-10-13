@@ -34,6 +34,45 @@ export function decodePcm(data: string): Float32Array<ArrayBuffer> {
   return values;
 }
 
+// A heavy 3D load can briefly delay the browser's main thread. Never flush
+// its microphone backlog as a burst, or send old speech as though it is live.
+export class CoachAudioQueue {
+  blocks: Uint8Array[] = [];
+  size = 0;
+  credit = 3200;
+  last = 0;
+  push(bytes: Uint8Array) {
+    this.blocks.push(bytes);
+    this.size += bytes.length;
+    let dropped = false;
+    while (this.size > 6400 && this.blocks.length) {
+      this.size -= this.blocks.shift()!.length;
+      dropped = true;
+    }
+    return dropped;
+  }
+  clear() {
+    this.blocks = [];
+    this.size = 0;
+    this.credit = 3200;
+    this.last = 0;
+  }
+  drain(clock: number, send: (bytes: Uint8Array) => void) {
+    if (this.last)
+      this.credit = Math.min(
+        3200,
+        this.credit + Math.max(0, clock - this.last) * 32,
+      );
+    this.last = clock;
+    while (this.blocks.length && this.blocks[0].length <= this.credit) {
+      const bytes = this.blocks.shift()!;
+      this.size -= bytes.length;
+      this.credit -= bytes.length;
+      send(bytes);
+    }
+  }
+}
+
 export class CoachSpeaker {
   context: AudioContext | null = null;
   sources = new Set<AudioBufferSourceNode>();
@@ -142,6 +181,23 @@ export function useCoachMedia(
     let audio: AudioContext | null = null;
     let source: MediaStreamAudioSourceNode | null = null;
     let worklet: AudioWorkletNode | null = null;
+    const upload = new CoachAudioQueue();
+    let lastGap = -Infinity;
+    const audioTimer = setInterval(() => {
+      if (!state.current.enabled || !state.current.mic) {
+        upload.clear();
+        return;
+      }
+      upload.drain(performance.now(), (bytes) =>
+        state.current.send({ type: "audio", data: bytesToBase64(bytes) }),
+      );
+    }, 20);
+    const audioGap = () => {
+      if (performance.now() - lastGap > 5000) {
+        lastGap = performance.now();
+        state.current.send({ type: "audio_gap" });
+      }
+    };
     let url = "";
     if (stream.getAudioTracks().length)
       void (async () => {
@@ -152,7 +208,7 @@ export function useCoachMedia(
               `
         class LivePCM extends AudioWorkletProcessor {
           constructor(){super();this.blocks=[];this.size=0;this.enabled=false;this.port.onmessage=e=>{this.enabled=!!e.data.enabled;if(!this.enabled){this.blocks=[];this.size=0;}};}
-          process(inputs){const a=inputs[0]?.[0];if(a&&this.enabled){this.blocks.push(new Float32Array(a));this.size+=a.length;if(this.size>=sampleRate*.04){const out=new Float32Array(this.size);let offset=0;for(const b of this.blocks){out.set(b,offset);offset+=b.length;}this.port.postMessage(out);this.blocks=[];this.size=0;}}return true;}
+          process(inputs){const a=inputs[0]?.[0];if(a&&this.enabled){this.blocks.push(new Float32Array(a));this.size+=a.length;if(this.size>=sampleRate*.04){const out=new Float32Array(this.size);let offset=0;for(const b of this.blocks){out.set(b,offset);offset+=b.length;}this.port.postMessage({samples:out,at:currentTime});this.blocks=[];this.size=0;}}return true;}
         } registerProcessor('live-pcm',LivePCM);
       `,
             ],
@@ -167,12 +223,15 @@ export function useCoachMedia(
         worklet.port.postMessage({
           enabled: state.current.enabled && state.current.mic,
         });
-        worklet.port.onmessage = (e: MessageEvent<Float32Array>) => {
-          if (state.current.enabled && state.current.mic)
-            state.current.send({
-              type: "audio",
-              data: bytesToBase64(pcm16(e.data, audio!.sampleRate)),
-            });
+        worklet.port.onmessage = (
+          e: MessageEvent<{ samples: Float32Array; at: number }>,
+        ) => {
+          if (!state.current.enabled || !state.current.mic) return;
+          if (audio!.currentTime - e.data.at > 0.3) {
+            audioGap();
+            return;
+          }
+          if (upload.push(pcm16(e.data.samples, audio!.sampleRate))) audioGap();
         };
         source.connect(worklet);
         const silent = audio.createGain();
@@ -188,6 +247,8 @@ export function useCoachMedia(
     return () => {
       disposed = true;
       clearInterval(frameTimer);
+      clearInterval(audioTimer);
+      upload.clear();
       capture.current = null;
       workletRef.current = null;
       stream
@@ -210,5 +271,18 @@ export function useCoachMedia(
     videoRef,
     stop,
     snapshot: () => capture.current?.() || false,
+    grabPhoto: () => {
+      const video = videoRef.current;
+      if (!video || video.readyState < 2) return null;
+      const ratio = Math.min(
+        1,
+        1024 / Math.max(video.videoWidth, video.videoHeight),
+      );
+      const photo = document.createElement("canvas");
+      photo.width = Math.round(video.videoWidth * ratio);
+      photo.height = Math.round(video.videoHeight * ratio);
+      photo.getContext("2d")!.drawImage(video, 0, 0, photo.width, photo.height);
+      return photo.toDataURL("image/jpeg", 0.9).split(",")[1];
+    },
   };
 }

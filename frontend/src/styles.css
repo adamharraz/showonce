@@ -2762,3 +2762,90 @@ textarea {
     justify-content: center;
   }
 }
+.twin-studio {
+  padding: 22px;
+  min-width: 0;
+}
+.twin-photo-review {
+  margin-top: 16px;
+}
+.twin-photo-review img {
+  display: block;
+  max-width: 100%;
+  max-height: 320px;
+  margin: 0 auto 16px;
+  border-radius: 10px;
+  object-fit: contain;
+}
+.twin-photo-review .check-label {
+  line-height: 1.6;
+}
+.twin-status {
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+  padding: 28px;
+  text-align: center;
+  background: #eef5f2;
+  border-radius: 12px;
+}
+.twin-status p {
+  max-width: 380px;
+  font-size: 12px;
+  margin: 0;
+}
+.twin-spinner {
+  animation: twin-spin 1.4s linear infinite;
+}
+.twin-result {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 14px;
+}
+.twin-history {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid #e2e8e6;
+}
+.twin-history summary {
+  cursor: pointer;
+}
+.twin-viewer {
+  height: 370px;
+}
+@keyframes twin-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (max-width: 600px) {
+  .twin-studio {
+    padding: 16px;
+  }
+  .twin-viewer {
+    height: 280px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .twin-spinner {
+    animation: none;
+  }
+}
+.twin-upload {
+  position: relative;
+  cursor: pointer;
+  margin: 0;
+}
+.twin-upload input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+}

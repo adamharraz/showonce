@@ -210,8 +210,16 @@ export function disposeModel(root: THREE.Object3D) {
       ).forEach((m) => materials.add(m));
   });
   geometries.forEach((g) => g.dispose());
+  const textures = new Set<THREE.Texture>();
   materials.forEach((m) => {
-    if ("map" in m && m.map instanceof THREE.Texture) m.map.dispose();
+    for (const value of Object.values(m))
+      if (value instanceof THREE.Texture) textures.add(value);
     m.dispose();
+  });
+  textures.forEach((texture) => {
+    texture.dispose();
+    // GLTFLoader may use ImageBitmap for PBR maps; release decoded images too.
+    const image = texture.image as { close?: () => void } | undefined;
+    image?.close?.();
   });
 }

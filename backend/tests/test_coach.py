@@ -157,8 +157,38 @@ def test_disconnect_cancels_upstream_bridge(coach_client):
     _,token=login(coach_client)
     with coach_client.websocket_connect('/api/coaching/stream',headers={'origin':'http://localhost:8000'}) as ws:
         authenticate(ws,token)
+    async def cleanup_finished():
+        for _ in range(100):
+            if TestBridge.instances[0].closed and coach_client.app.state.coach.active is None:return
+            await asyncio.sleep(.01)
+        raise AssertionError('Disconnected session did not release its bridge and active-session slot')
+    coach_client.portal.call(cleanup_finished)
     assert TestBridge.instances[0].closed
     assert coach_client.app.state.coach.active is None
+
+def test_delayed_browser_audio_reports_gap_without_ending_camera_session(coach_client):
+    _,token=login(coach_client)
+    with coach_client.websocket_connect('/api/coaching/stream',headers={'origin':'http://localhost:8000'}) as ws:
+        authenticate(ws,token)
+        ws.send_json({'type':'audio_gap'})
+        assert ws.receive_json()['type']=='notice'
+        assert TestBridge.instances[0].sent[-1][0]=='audio_end'
+        ws.send_json({'type':'frame','data':image()})
+        assert ws.receive_json()['type']=='frame_seen'
+        ws.send_json({'type':'control','action':'finish'});until(ws,'finished')
+
+def test_burst_audio_is_bounded_and_reported_without_closing_the_session(coach_client):
+    _,token=login(coach_client)
+    with coach_client.websocket_connect('/api/coaching/stream',headers={'origin':'http://localhost:8000'}) as ws:
+        authenticate(ws,token)
+        chunk=base64.b64encode(b'\x00\x00'*3200).decode()
+        for _ in range(25):ws.send_json({'type':'audio','data':chunk})
+        assert until(ws,'notice')[-1]['type']=='notice'
+        ws.send_json({'type':'ping'});until(ws,'pong')
+        forwarded=sum(len(value) for kind,value in TestBridge.instances[0].sent if kind=='audio')
+        assert forwarded<=96000
+        ws.send_json({'type':'frame','data':image()});until(ws,'frame_seen')
+        ws.send_json({'type':'control','action':'finish'});until(ws,'finished')
 
 def test_only_one_live_reconnect_is_attempted(coach_client):
     _,token=login(coach_client)
