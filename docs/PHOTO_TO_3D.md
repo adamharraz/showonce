@@ -1,12 +1,14 @@
 # Relay-style photo-to-3D on Modal — 13 October 2026
 
-The current 3D interface replaces the component-reference panel with **capture → review → generate → save → rotate/download**. It follows Relay's later photo-to-mesh feature at revision `e432291ea0dea02db71c030f569b1f7e0975aa8b`, not the original March preset circuit sandbox. Relay calls Stability's paid Stable Fast 3D API; ShowOnce runs the same public model family on a private Modal A10 worker. Outputs are not claimed to be identical to the hosted Stability API.
+**Historical experiment:** the main UI now uses the prepared component catalogue in `COMPONENT_LIBRARY.md`; `TWIN_ENABLED=false` in the local environment. A real photo of an ESP32 held in front of hands/people produced a mesh of those surrounding subjects with the board omitted. A successful chair-sample test establishes transport/rendering, not electronics reconstruction accuracy. The worker, source and saved private models remain available for deliberate future experiments; using the current catalogue does not start a GPU.
+
+The experimental 3D interface used **capture → review → generate → save → rotate/download** before the catalogue was restored. It followed Relay's later photo-to-mesh feature at revision `e432291ea0dea02db71c030f569b1f7e0975aa8b`, not the original March preset circuit sandbox. Relay calls Stability's paid Stable Fast 3D API; ShowOnce ran the same public model family on a private Modal A10 worker. Outputs are not claimed to be identical to the hosted Stability API.
 
 Sources: [Relay provider](https://github.com/faith-ogun/Relay/blob/e432291ea0dea02db71c030f569b1f7e0975aa8b/backend/reporter/app/providers.py), [Relay photo workflow](https://github.com/faith-ogun/Relay/blob/e432291ea0dea02db71c030f569b1f7e0975aa8b/frontend/components/ohmlet/twin/TwinStudio.tsx).
 
 ## Current deployment
 
-Private app: [showonce-sf3d](https://modal.com/apps/adamtch142/main/deployed/showonce-sf3d), environment `main`. Its CUDA image built, both upstream C++/CUDA extensions compiled and the SF3D imports passed. Hugging Face access is attached through `showonce-huggingface`; CPU weight preparation passed and generation is enabled in the local app. **One real GPU reconstruction passed on the upstream official chair sample.** Physical electronics reconstruction quality remains unvalidated.
+Private app: [showonce-sf3d](https://modal.com/apps/adamtch142/main/deployed/showonce-sf3d), environment `main`. Its CUDA image built, both upstream C++/CUDA extensions compiled and the SF3D imports passed. Hugging Face access is attached through `showonce-huggingface`; CPU weight preparation passed. Generation was enabled for the tests and is now disabled in the local app. **One real GPU reconstruction passed on the upstream official chair sample; the subsequent ESP32-photo result failed to retain the board.** Physical electronics reconstruction quality is unsuitable to claim from these results.
 
 Activation exposed a Modal dependency mismatch: the module was imported remotely without the local environment variable that conditionally attached the Secret. The worker now declares the same named Secret unconditionally in both environments. The failed deployment was stopped before redeployment; no GPU inference ran during that failed preparation.
 

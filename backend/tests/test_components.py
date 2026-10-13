@@ -96,6 +96,10 @@ def test_invalid_or_stale_model_tool_never_replaces_inventory(component_client,a
         assert not response.response['accepted']
         until(ws,'component_notice')
         assert active.record['component_scene']==scene
+        rejected=[m for m in component_client.portal.call(component_client.app.state.store.all,'metric')
+                  if m.get('operation')=='component_result_rejected']
+        assert rejected and rejected[-1]['reason']
+        assert 'made-up-part' not in str(rejected) and 'different-frame' not in str(rejected)
         ws.send_json({'type':'control','action':'finish'}); until(ws,'finished')
 
 def test_no_camera_request_preserves_state_without_model_inference(component_client):

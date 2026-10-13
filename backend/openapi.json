@@ -1892,7 +1892,8 @@
           "id": {
             "type": "string",
             "pattern": "^[a-zA-Z0-9_-]{1,40}$",
-            "title": "Id"
+            "title": "Id",
+            "description": "Unique short identifier, e.g. part1. Use only letters, digits, underscores or hyphens."
           },
           "part_id": {
             "type": "string",

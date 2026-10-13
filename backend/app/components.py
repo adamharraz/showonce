@@ -63,7 +63,7 @@ class Catalogue(Strict):
     parts: list[Part] = Field(default_factory=lambda: PARTS)
 
 class DetectedPart(Strict):
-    id: str = Field(pattern=r'^[a-zA-Z0-9_-]{1,40}$')
+    id: str = Field(pattern=r'^[a-zA-Z0-9_-]{1,40}$', description='Unique short identifier, e.g. part1. Use only letters, digits, underscores or hyphens.')
     part_id: PartId
     evidence: str = Field(min_length=1, max_length=500)
     uncertain: bool = True
@@ -77,7 +77,7 @@ class DetectedPart(Strict):
         return self
 
 class InspectionOutput(Strict):
-    frame_id: str = Field(max_length=100)
+    frame_id: str = Field(max_length=100, description='Copy the exact frame_id from the inspection request.')
     components: list[DetectedPart] = Field(max_length=12)
     questions: list[str] = Field(default_factory=list, max_length=6)
 

@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 from PIL import Image, ImageOps
 from fastapi import Depends, HTTPException, WebSocket, WebSocketDisconnect
 from google.genai import types
-from pydantic import Field
+from pydantic import Field, ValidationError
 from typing import Literal
 from .ai import AIError, Gemini
 from .config import LIVE_MODEL
@@ -329,8 +329,16 @@ class CoachSession:
                 'reference_only': True, 'revision': scene.revision, 'component_count': len(scene.components)})
         except ValueError as exc:
             # Never echo malformed arguments or raw imagery into logs/the UI.
+            if isinstance(exc, ValidationError):
+                reason = '; '.join('.'.join(map(str, e['loc'])) + ': ' + e['type']
+                                   for e in exc.errors(include_input=False, include_url=False))[:500]
+            else:
+                reason = str(exc)[:300]
+            await self.service.store.put('metric', {'id':uid(),'owner_id':self.record['owner_id'],
+                'session_id':self.record['id'],'operation':'component_result_rejected','model':LIVE_MODEL,
+                'reason':reason,'created_at':now()})
             await self.emit('component_notice', message='A component result could not be accepted. Your previous references are preserved.')
-            return types.FunctionResponse(id=call.id, name=call.name, response={'accepted': False, 'error': str(exc)[:300]})
+            return types.FunctionResponse(id=call.id, name=call.name, response={'accepted': False, 'error': reason})
 
     async def correct_components(self, edit):
         async with self.scene_lock:

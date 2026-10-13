@@ -36,8 +36,10 @@ export default function ComponentPanel({
       .then(setCatalogue)
       .catch((e) => setError(e.message));
   }, []);
-  const detected =
-    scene.components.find((p) => p.id === selected) || scene.components[0];
+  useEffect(() => {
+    setSelected(scene.components[0]?.id || "");
+  }, [scene.frame_id, sessionId]);
+  const detected = scene.components.find((p) => p.id === selected);
   const partId = detected?.part_id || preview;
   const part = catalogue?.parts.find((p) => p.id === partId);
   const variant = part?.variants.find(
@@ -63,8 +65,9 @@ export default function ComponentPanel({
         </button>
       </div>
       <p className="fine">
-        Reusable reference models. Camera wiring and physical placement are not
-        reconstructed.
+        Gemini identifies visible components; ShowOnce loads prepared reference
+        models. Confirm the identity and board variant before using details.
+        Placement and wiring are illustrative.
       </p>
       {notice && (
         <p className="component-notice" role="status">
@@ -78,7 +81,7 @@ export default function ComponentPanel({
       )}
       {catalogue && (
         <>
-          {scene.components.length ? (
+          {scene.components.length > 0 && (
             <div
               className="component-tabs"
               role="group"
@@ -96,31 +99,35 @@ export default function ComponentPanel({
                 </button>
               ))}
             </div>
-          ) : (
-            <>
-              <p className="fine">
-                Browse the five reference models below. Start coaching and
-                identify visible parts for a live result.
-              </p>
-              <div
-                className="component-tabs"
-                role="group"
-                aria-label="Browse reference models"
-              >
-                {catalogue.parts
-                  .filter((p) => p.id !== "unknown")
-                  .map((p) => (
-                    <button
-                      key={p.id}
-                      className={preview === p.id ? "selected" : ""}
-                      onClick={() => setPreview(p.id)}
-                    >
-                      {p.name}
-                    </button>
-                  ))}
-              </div>
-            </>
           )}
+          <div className="component-catalogue">
+            <p className="fine">
+              Browse ESP32, breadboard, LED, resistor and wire references at any
+              time. Browsing uses no AI calls or GPU generation.
+              {!scene.components.length &&
+                " Start live coaching to identify your visible parts."}
+            </p>
+            <div
+              className="component-tabs"
+              role="group"
+              aria-label="Browse reference models"
+            >
+              {catalogue.parts
+                .filter((p) => p.id !== "unknown")
+                .map((p) => (
+                  <button
+                    key={p.id}
+                    className={!detected && preview === p.id ? "selected" : ""}
+                    onClick={() => {
+                      setSelected("");
+                      setPreview(p.id);
+                    }}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+            </div>
+          </div>
           {part && (
             <>
               <Suspense
@@ -196,7 +203,9 @@ export default function ComponentPanel({
           {scene.questions.length > 0 && (
             <div className="component-questions">
               <strong>Questions from this inspection</strong>
-              <p className="fine">Check these against your saved confirmations.</p>
+              <p className="fine">
+                Check these against your saved confirmations.
+              </p>
               <ul>
                 {scene.questions.map((q, i) => (
                   <li key={i}>{q}</li>

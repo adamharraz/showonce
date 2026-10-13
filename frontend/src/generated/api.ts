@@ -784,7 +784,10 @@ export interface components {
         };
         /** ScenePart */
         ScenePart: {
-            /** Id */
+            /**
+             * Id
+             * @description Unique short identifier, e.g. part1. Use only letters, digits, underscores or hyphens.
+             */
             id: string;
             /**
              * Part Id
