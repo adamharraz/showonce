@@ -383,6 +383,42 @@
         }
       }
     },
+    "/api/auth/demo": {
+      "post": {
+        "summary": "Demo Login",
+        "operationId": "demo_login_api_auth_demo_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoLogin"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/me": {
       "get": {
         "summary": "Me",
@@ -1398,6 +1434,33 @@
         ],
         "title": "CriterionResult",
         "type": "object"
+      },
+      "DemoLogin": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "instructor",
+              "student"
+            ],
+            "title": "Role"
+          },
+          "access_code": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 1,
+            "format": "password",
+            "title": "Access Code",
+            "writeOnly": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "role",
+          "access_code"
+        ],
+        "title": "DemoLogin"
       },
       "DraftEdit": {
         "properties": {

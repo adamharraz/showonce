@@ -17,7 +17,7 @@ from .ai import Gemini
 from .coach import CoachManager, LiveBridge
 from .twins import TwinManager
 from .services import Service, Runtime, now, validate_draft, publication_errors
-from .models import CreateSession, DraftEdit, SetStep, FrameMessage, AudioMessage, uid, SessionRecord, AssessmentRecord, JobRecord, LessonRecord, VersionRecord, SessionDetail
+from .models import CreateSession, DraftEdit, SetStep, FrameMessage, AudioMessage, uid, SessionRecord, AssessmentRecord, JobRecord, LessonRecord, VersionRecord, SessionDetail, DemoLogin
 
 def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_provider=None):
     settings = settings or Settings()
@@ -73,7 +73,7 @@ def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_pro
 
     @app.get('/api/config')
     async def config():
-        return {'local_login': settings.storage_mode == 'local' and settings.allow_local_login, 'storage_mode': settings.storage_mode, 'ai_configured': bool(settings.gemini_key), 'free_tier_confirmed': settings.free_tier_confirmed, 'supabase_url': settings.supabase_url, 'supabase_anon_key': settings.supabase_anon, 'analysis_interval': settings.interval, 'daily_limit': settings.daily_limit, 'physical_model': settings.general_model, 'general_model': settings.general_model, 'app_origin': settings.origin, 'coach_model': settings.coach_model, 'coach_enabled': settings.coach_enabled, 'coach_limit_seconds': settings.coach_seconds, 'twin_enabled':settings.twin_enabled, 'twin_free_confirmed':settings.twin_free_confirmed, 'twin_model':'stabilityai/stable-fast-3d', 'twin_daily_limit':settings.twin_daily_limit, 'twin_total_limit':settings.twin_total_limit}
+        return {'local_login': settings.storage_mode == 'local' and settings.allow_local_login, 'demo_mode': settings.demo_mode, 'storage_mode': settings.storage_mode, 'ai_configured': bool(settings.gemini_key), 'free_tier_confirmed': settings.free_tier_confirmed, 'supabase_url': settings.supabase_url, 'supabase_anon_key': settings.supabase_anon, 'analysis_interval': settings.interval, 'daily_limit': settings.daily_limit, 'physical_model': settings.general_model, 'general_model': settings.general_model, 'app_origin': settings.origin, 'coach_model': settings.coach_model, 'coach_enabled': settings.coach_enabled, 'coach_limit_seconds': settings.coach_seconds, 'twin_enabled':settings.twin_enabled, 'twin_free_confirmed':settings.twin_free_confirmed, 'twin_model':'stabilityai/stable-fast-3d', 'twin_daily_limit':settings.twin_daily_limit, 'twin_total_limit':settings.twin_total_limit}
 
     @app.get('/api/health')
     async def health():
@@ -88,6 +88,10 @@ def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_pro
         if role not in ('instructor', 'student'):
             raise HTTPException(422, 'Choose instructor or student')
         return {'token': auth.token(role), 'user': {'id': f'local-{role}', 'role': role}}
+
+    @app.post('/api/auth/demo')
+    async def demo_login(body: DemoLogin):
+        return auth.demo_login(body.access_code.get_secret_value(), body.role)
 
     @app.get('/api/me')
     async def me(current=Depends(user)):

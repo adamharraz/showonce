@@ -4,6 +4,7 @@ import hmac
 import json
 import secrets
 import time
+from collections import deque
 from dataclasses import dataclass
 from fastapi import HTTPException
 
@@ -21,21 +22,26 @@ class Auth:
             path.write_bytes(secrets.token_bytes(32))
         self.secret = path.read_bytes()
         self.tickets = {}
+        self.demo_attempts = deque()
 
     def token(self, role):
-        payload = base64.urlsafe_b64encode(json.dumps({'id': f'local-{role}', 'role': role, 'exp': time.time() + 28800}).encode()).decode()
+        prefix = 'demo' if self.settings.demo_mode else 'local'
+        payload = base64.urlsafe_b64encode(json.dumps({'id': f'{prefix}-{role}', 'role': role, 'exp': time.time() + 28800}).encode()).decode()
         sig = hmac.new(self.secret, payload.encode(), hashlib.sha256).hexdigest()
         return f'{payload}.{sig}'
 
     async def user(self, token):
-        if self.settings.storage_mode == 'local' and self.settings.allow_local_login:
+        if self.settings.storage_mode == 'local':
+            if not (self.settings.allow_local_login or self.settings.demo_mode):
+                raise HTTPException(401, 'Sign in required')
             try:
                 payload, sig = token.split('.')
                 expected = hmac.new(self.secret, payload.encode(), hashlib.sha256).hexdigest()
                 if not hmac.compare_digest(sig, expected):
                     raise ValueError()
                 data = json.loads(base64.urlsafe_b64decode(payload))
-                if data['exp'] < time.time() or data['role'] not in ('instructor', 'student'):
+                prefix = 'demo' if self.settings.demo_mode else 'local'
+                if data['exp'] < time.time() or data['role'] not in ('instructor', 'student') or data['id'] != f"{prefix}-{data['role']}":
                     raise ValueError()
                 return User(data['id'], data['role'])
             except (ValueError, KeyError, TypeError):
@@ -50,6 +56,19 @@ class Auth:
         if not profile:
             raise HTTPException(403, 'This account has not been provisioned for ShowOnce')
         return User(data['id'], profile['role'])
+
+    def demo_login(self, code, role):
+        if not self.settings.demo_mode:
+            raise HTTPException(403, 'Demo sign-in is disabled')
+        current = time.monotonic()
+        while self.demo_attempts and self.demo_attempts[0] <= current - 60:
+            self.demo_attempts.popleft()
+        if len(self.demo_attempts) >= 20:
+            raise HTTPException(429, 'Too many sign-in attempts. Try again in one minute.')
+        self.demo_attempts.append(current)
+        if not hmac.compare_digest(code.encode(), self.settings.demo_access_code.encode()):
+            raise HTTPException(401, 'The demo access code is incorrect')
+        return {'token': self.token(role), 'user': {'id': f'demo-{role}', 'role': role}}
 
     def ticket(self, session_id, user_id):
         token = secrets.token_urlsafe(32)

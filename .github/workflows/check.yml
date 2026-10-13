@@ -20,3 +20,19 @@ jobs:
       - run: npm run types --prefix frontend
       - run: npm test --prefix frontend
       - run: npm run build --prefix frontend
+      - name: Build deployment image
+        run: docker build -t showonce-deploy-check .
+      - name: Check container startup and private-file exclusions
+        shell: bash
+        run: |
+          docker run --rm --entrypoint python showonce-deploy-check -c "from pathlib import Path; assert not Path('/app/backend/.env').exists(); assert not Path('/app/backend/tests').exists(); assert Path('/app/frontend/dist/index.html').exists()"
+          docker run -d --name showonce-deploy-check -p 8000:8000 showonce-deploy-check
+          trap 'docker logs showonce-deploy-check; docker rm -f showonce-deploy-check' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8000/api/health; then
+              curl --fail --silent http://127.0.0.1:8000/coach > /dev/null
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1

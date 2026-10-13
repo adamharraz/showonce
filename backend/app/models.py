@@ -1,12 +1,16 @@
 from typing import Literal
 from uuid import uuid4
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 
 def uid() -> str:
     return uuid4().hex
 
 class Strict(BaseModel):
     model_config = ConfigDict(extra='forbid')
+
+class DemoLogin(Strict):
+    role: Literal['instructor', 'student']
+    access_code: SecretStr = Field(min_length=1, max_length=256)
 
 class Question(Strict):
     id: str = Field(default_factory=uid)

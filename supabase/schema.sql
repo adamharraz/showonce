@@ -10,6 +10,8 @@ create index if not exists showonce_kind_owner on public.showonce_records(kind, 
 alter table public.showonce_records enable row level security;
 -- No browser policies: only the backend service role can read or write records.
 revoke all on public.showonce_records from anon, authenticated;
+-- Explicit backend access also works when automatic Data API grants are disabled.
+grant all on public.showonce_records to service_role;
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('showonce', 'showonce', false, 1000000, array['image/jpeg'])
 on conflict (id) do update set public = false;

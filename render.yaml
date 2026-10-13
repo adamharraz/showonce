@@ -6,18 +6,18 @@ services:
     healthCheckPath: /api/health
     envVars:
       - key: STORAGE_MODE
-        value: supabase
+        value: local
+      - key: DEMO_MODE
+        value: "true"
+      - key: DEMO_ACCESS_CODE
+        sync: false
       - key: ALLOW_LOCAL_LOGIN
         value: "false"
+      - key: TWIN_ENABLED
+        value: "false"
+      - key: LIVE_COACH_ENABLED
+        value: "true"
       - key: FREE_TIER_CONFIRMED
         value: "false"
       - key: GEMINI_API_KEY
-        sync: false
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_ANON_KEY
-        sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false
-      - key: APP_ORIGIN
         sync: false

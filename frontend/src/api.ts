@@ -14,6 +14,7 @@ export type Outcome = components["schemas"]["AssessmentOutput"]["outcome"];
 export type Source = "camera" | "screen" | "phone";
 export interface Config {
   local_login: boolean;
+  demo_mode: boolean;
   ai_configured: boolean;
   free_tier_confirmed: boolean;
   storage_mode: string;
@@ -80,13 +81,13 @@ export function hostedAuth(config: Config) {
   return hostedClient;
 }
 export async function restoreHostedAuth(config: Config) {
-  if (config.local_login) return;
+  if (config.local_login || config.demo_mode) return;
   const client = await hostedAuth(config);
   const { data } = await client.auth.getSession();
   setToken(data.session?.access_token || "");
 }
 export async function logoutHostedAuth(config: Config) {
-  if (!config.local_login && hostedClient)
+  if (!config.local_login && !config.demo_mode && hostedClient)
     await (await hostedClient).auth.signOut();
 }
 export async function api<T>(

@@ -162,6 +162,8 @@ function Login({
   const [busy, setBusy] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [accessCode, setAccessCode] = useState("");
+  const [demoRole, setDemoRole] = useState<User["role"]>("instructor");
   async function local(role: string) {
     setBusy(true);
     setError("");
@@ -183,6 +185,20 @@ function Login({
     setBusy(true);
     setError("");
     try {
+      if (config.demo_mode) {
+        const result = await api<{ token: string; user: User }>(
+          "/auth/demo",
+          "POST",
+          {
+            role: demoRole,
+            access_code: accessCode,
+          },
+        );
+        setToken(result.token);
+        setAccessCode("");
+        onLogin(result.user);
+        return;
+      }
       const client = await hostedAuth(config);
       const { data, error } = await client.auth.signInWithPassword({
         email,
@@ -272,32 +288,69 @@ function Login({
               void signIn();
             }}
           >
-            <label>
-              Email
-              <input
-                type="email"
-                autoComplete="username"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </label>
-            <label>
-              Password
-              <input
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </label>
+            {config.demo_mode ? (
+              <>
+                <div className="local-note">
+                  <strong>Competition demo</strong>
+                  <p>
+                    Lessons and screenshots are temporary. Export your lesson
+                    before the service sleeps or restarts.
+                  </p>
+                </div>
+                <label>
+                  Demo access code
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    value={accessCode}
+                    onChange={(e) => setAccessCode(e.target.value)}
+                  />
+                </label>
+                <label>
+                  Demo role
+                  <select
+                    value={demoRole}
+                    onChange={(e) =>
+                      setDemoRole(e.target.value as User["role"])
+                    }
+                  >
+                    <option value="instructor">Instructor</option>
+                    <option value="student">Student</option>
+                  </select>
+                </label>
+              </>
+            ) : (
+              <>
+                <label>
+                  Email
+                  <input
+                    type="email"
+                    autoComplete="username"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </label>
+                <label>
+                  Password
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                </label>
+              </>
+            )}
             <button disabled={busy} className="button primary full">
               {busy ? "Signing in…" : "Sign in"} <ArrowRight size={17} />
             </button>
             <p className="fine">
-              Accounts are provided by your instructor. Public registration is
-              disabled.
+              {config.demo_mode
+                ? "Use the team's private code. Each role shares one demo workspace."
+                : "Accounts are provided by your instructor. Public registration is disabled."}
             </p>
           </form>
         )}
@@ -2056,6 +2109,18 @@ function Setup({ config }: { config: Config }) {
         <span className="badge green">RM0 service target</span>
       </div>
       <div className="settings-grid">
+        {config.demo_mode && (
+          <section className="panel wide">
+            <h3>Temporary competition demo</h3>
+            <p>
+              No external database is connected. Lessons and screenshots are
+              stored temporarily on this service and can disappear when it
+              sleeps, restarts or redeploys. Export lessons you want to keep.
+              This demo has one shared instructor workspace and one shared
+              student workspace.
+            </p>
+          </section>
+        )}
         <section className="panel">
           <h3>Service connections</h3>
           {[
@@ -2374,7 +2439,11 @@ export default function App() {
                 : "Student workspace"}
             </strong>
             <span>
-              {config.local_login ? "Local development" : "University learning"}
+              {config.demo_mode
+                ? "Competition demo"
+                : config.local_login
+                  ? "Local development"
+                  : "University learning"}
             </span>
           </div>
           <button
@@ -2432,6 +2501,12 @@ export default function App() {
           </div>
         </header>
         <main>
+          {config.demo_mode && (
+            <Banner>
+              Temporary demo: export lessons before the service sleeps or
+              restarts.
+            </Banner>
+          )}
           {path.startsWith("/coach") ? (
             <LiveCoach
               key={path}

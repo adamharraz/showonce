@@ -75,7 +75,19 @@ Instructor sessions last at most five minutes from creation; practice lasts ten 
 
 Phone pairing uses a single-use ticket expiring in two minutes. Camera access needs hosted HTTPS; a phone cannot use the laptop's localhost URL. No tunnelling dependency is assumed. Use laptop webcam/screen capture for the local backup. A disconnected phone requires a fresh QR ticket; the main controller reconnects once. The phone ticket grants capture only, not lesson access or session control.
 
-## Deploy to Render Free + Supabase Free
+## Deploy the competition demo to Render Free
+
+`render.yaml` now defaults to a temporary demo that needs no Supabase project or external database. Deploy the Docker service on **Free**, with one worker. Set `STORAGE_MODE=local`, `DEMO_MODE=true`, `ALLOW_LOCAL_LOGIN=false`, a random private `DEMO_ACCESS_CODE` (at least 32 characters), `GEMINI_API_KEY` and verified `FREE_TIER_CONFIRMED=true`. Keep `TWIN_ENABLED=false`. The backend uses Render's assigned `RENDER_EXTERNAL_URL` automatically; set `APP_ORIGIN` only to override it for a custom domain.
+
+`python scripts/prepare_demo_env.py` prepares `.data/render-demo.env` for importing into Render and `.data/demo-access.txt` for the team. Both files are ignored by Git and Docker. They contain credentials: never commit them or share them publicly. The script copies the already configured Gemini key and requires local free-tier confirmation. An optional HTTPS origin argument overrides Render's assigned URL.
+
+Sign in with the private demo code and choose instructor or student. Each role shares one workspace; this is for a controlled team demonstration, not separate participant accounts. Anonymous access to lessons, images and AI sessions remains blocked. Developer role-picker sign-in remains limited to localhost. Demo tokens last eight hours and become invalid when the temporary signing file is lost.
+
+Lessons and screenshots use the existing local SQLite/file adapter inside the service. **Render Free erases local changes when it sleeps, restarts or redeploys.** Export published lessons and validation evidence before leaving the demo. It can sleep after 15 idle minutes and take about a minute to wake. The app displays the temporary-storage limitation. This configuration demonstrates capture, AI, review, publication and practice during a running session; it does not provide durable cloud lesson reuse.
+
+Run `python scripts/check_hosted.py https://your-service.onrender.com` to verify public configuration, frontend pages and anonymous-access restrictions without spending AI quota. Test sign-in, capture and actual AI separately. Keep the local laptop app as the demonstration backup.
+
+## Optional durable hosting with Supabase Free
 
 Prepared configuration is provided; deployment has **not** been performed.
 
@@ -86,7 +98,7 @@ Prepared configuration is provided; deployment has **not** been performed.
 5. Put the project in your repository and create a Render **Free** Docker web service using `render.yaml`/`Dockerfile`. Keep one worker. Set all required secret environment values, `APP_ORIGIN=https://your-service.onrender.com`, and only then the verified free-tier flag. Do not configure paid disks, paid plans or automatic upgrades.
 6. Verify health, account sign-in, permission isolation, private images, phone HTTPS capture and persistence across a restart. Test the actual Python 3.12 image. The same-origin frontend is built in Docker.
 
-Hosted mode fails startup if configured to use the ephemeral local filesystem or developer login. Supabase stores lessons, observations, assessments, jobs and screenshots. Sessions interrupted by a restart are flagged; interrupted jobs require an explicit retry. Pairing tickets are deliberately memory-only and expire on restart. Free hosting cold starts and capacity limits are material demo risks.
+Set `DEMO_MODE=false` when enabling Supabase. Hosted mode rejects developer login and unprotected local storage. Supabase stores lessons, observations, assessments, jobs and screenshots durably. Sessions interrupted by a restart are flagged; interrupted jobs require an explicit retry. Pairing tickets are deliberately memory-only and expire on restart. Free hosting cold starts and capacity limits are material demo risks.
 
 Practice screenshots are removed after seven days, checked at startup and hourly. Publishing removes unselected instructor frames, retaining every screenshot referenced by any published version. Unpublished evidence remains available for recovery. Export validation inputs before publishing. Supabase quota management and removal of abandoned drafts remain team responsibilities for this small MVP.
 
