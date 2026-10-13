@@ -6,7 +6,11 @@ Sources: [Relay provider](https://github.com/faith-ogun/Relay/blob/e432291ea0dea
 
 ## Current deployment
 
-Private app: [showonce-sf3d](https://modal.com/apps/adamtch142/main/deployed/showonce-sf3d), environment `main`. Its CUDA image built, both upstream C++/CUDA extensions compiled and the SF3D imports passed. The authenticated CPU-only readiness function returned the expected model/revisions and confirmed that no public endpoint exists. **Hugging Face access is not attached yet; no real GPU mesh has been generated or validated.**
+Private app: [showonce-sf3d](https://modal.com/apps/adamtch142/main/deployed/showonce-sf3d), environment `main`. Its CUDA image built, both upstream C++/CUDA extensions compiled and the SF3D imports passed. Hugging Face access is attached through `showonce-huggingface`; CPU weight preparation passed and generation is enabled in the local app. **One real GPU reconstruction passed on the upstream official chair sample.** Physical electronics reconstruction quality remains unvalidated.
+
+Activation exposed a Modal dependency mismatch: the module was imported remotely without the local environment variable that conditionally attached the Secret. The worker now declares the same named Secret unconditionally in both environments. The failed deployment was stopped before redeployment; no GPU inference ran during that failed preparation.
+
+The genuine app-level test completed in **174.489 seconds**, including CPU preparation and GPU cold startup. The method reported **2.936 seconds** for image processing, reconstruction and GLB export after model loading. Its 748,092-byte GLB contained one mesh, one material and two embedded textures. Authenticated fetch/download passed; unauthenticated access returned HTTP 401. Chrome loaded the real textures, rotation changed the rendered view, the downloaded bytes matched the saved GLB, and desktop/mobile checks passed with no browser errors or additional inference calls. These are single-sample results, not typical latency or electronics accuracy measurements. Reports, source photo, GLB and screenshots are in ignored `artifacts/sf3d-live/`; the sample job also appears in the instructor's saved-model history.
 
 The installed host Modal CLI (1.2.2) was preserved. ShowOnce's project environment now pins Modal 1.6.1 for private function invocation and deployment. The existing active account/profile was reused; no credentials were printed or copied into source.
 
@@ -24,7 +28,7 @@ Source code: `modal_app/sf3d_worker.py`. SF3D source is pinned to `ff21fc491b4dc
    ```
 
    This redeploys with the named Secret, prepares weights on a CPU, then updates the ignored backend environment file. It does not enable generation if preparation fails. Restart the local ShowOnce server afterward.
-5. Run one real image → GLB test through the app, confirm that it loads and downloads, and inspect the Modal usage report. Actual ESP32/breadboard mesh quality must be tested separately. Until that gate is complete, report the feature as implemented/deployed but generation unverified.
+5. Run one real image → GLB test through the app, confirm that it loads and downloads, and inspect the Modal usage report. The official chair sample passed on 13 October; actual ESP32/breadboard mesh quality must still be tested separately.
 
 Model access source: [SF3D official README](https://github.com/Stability-AI/stable-fast-3d#requesting-access-and-login).
 
@@ -42,7 +46,9 @@ The standalone model is not automatically included in an immutable published les
 
 The owner reported **US$221 remaining credits**, a **US$200 usage limit** and **US$0 spend limit** on 13 October. Modal's spend limit caps net charges after credits; the usage limit caps gross workspace usage. The application relies on that account guard plus a manual confirmation flag—it does not independently read the dashboard's credit balance or spend-limit values. The billing summary read through the SDK reported zero billed cost at setup; it is not proof of an unlimited free plan.
 
-Local defaults: three generation attempts per UTC day and ten total. Failed attempts count; cached views do not. One job runs at a time, no automatic paid fallback, no public GPU endpoint and no automatic retries. CPU/image builds, cold starts, active GPU time and idle timeout consume Modal credits. The user's existing unrelated Modal apps remain untouched.
+Local defaults: three generation attempts per UTC day and ten total. Failed attempts count; cached views do not. The successful activation test used one application attempt. One job runs at a time, no automatic paid fallback, no public GPU endpoint and no automatic retries. CPU/image builds, cold starts, active GPU time and idle timeout consume Modal credits. The user's existing unrelated Modal apps remain untouched.
+
+After the live test, Modal's monthly workspace summary reported **US$0 billed** and US$0.94160851 metered cost before allowances/credits. This is a workspace-wide snapshot, including other activity, not a per-model charge. The hourly report attributed US$0.05012079 of A10 GPU usage to ShowOnce on 13 October; CPU, memory, network and storage are additional. Reporting may lag. Both report commands were read-only; no billing settings were changed.
 
 Modal lists A10 at US$0.000306/sec before CPU/memory. For example, sixty seconds of GPU time alone is about US$0.0184; actual total includes CPU, memory, load time and idle timeout. This is a planning calculation, not a measured per-model cost. [Modal pricing](https://modal.com/pricing), [budget/spend-limit semantics](https://modal.com/docs/guide/budgets).
 
@@ -52,4 +58,4 @@ Tests cover consent, bad photos, ownership, private model/photo access, idempote
 
 The microphone uploader now paces current audio, drops stale backlog with an explicit repeat request, and handles oversized delivery bursts without closing the camera session. Tests exercise both paced transport and the backend burst guard. Disconnect cleanup is protected from cancellation so a departed browser releases its upstream connection and session slot.
 
-Still required: Hugging Face access/Secret, real Modal GPU inference, foreground/background quality checks, thin-wire and circuit examples, measured cold/warm costs and supervisor review. No hardware accuracy, physical digital-twin, TRL4 or submission readiness claim follows from the software/fixture tests.
+Eleven existing photo-to-3D regression tests passed after the activation fix, alongside the genuine GPU/browser check described above. Still required: foreground/background quality checks, thin-wire and circuit examples, representative cold/warm costs and supervisor review. No hardware accuracy, physical digital-twin, TRL4 or submission readiness claim follows from the software or single-sample generation checks.

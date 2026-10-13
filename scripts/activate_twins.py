@@ -13,13 +13,12 @@ import sys
 
 async def main():
     parser=argparse.ArgumentParser()
-    parser.add_argument('--secret',default='showonce-huggingface')
     parser.add_argument('--zero-spend-confirmed',action='store_true')
     args=parser.parse_args()
     if not args.zero_spend_confirmed:
         raise SystemExit('First verify Modal credits and a US$0 workspace spend limit. No cloud changes were made.')
     root=Path(__file__).resolve().parents[1]
-    task_env={**os.environ,'SHOWONCE_HF_SECRET':args.secret,'PYTHONUTF8':'1','PYTHONIOENCODING':'utf-8'}
+    task_env={**os.environ,'PYTHONUTF8':'1','PYTHONIOENCODING':'utf-8'}
     result=subprocess.run([sys.executable,'-m','modal','deploy','modal_app/sf3d_worker.py','--env','main'],cwd=root,env=task_env)
     if result.returncode:raise SystemExit(result.returncode)
     import modal

@@ -4,7 +4,7 @@ One live demonstration becomes a reviewed, reusable lesson. Students then practi
 
 ## Current delivery
 
-Latest 13 October update: the main 3D workflow now captures a build photo, generates a textured GLB with Stable Fast 3D on a private Modal GPU worker, then offers rotation/download and saved-model history. The worker is deployed; Hugging Face model access still needs attaching before real generation can be enabled. See [photo-to-3D setup and validation](docs/PHOTO_TO_3D.md). Live microphone backlog is now paced, and delivery bursts report a gap instead of closing the session.
+Latest 13 October update: the main 3D workflow now captures a build photo, generates a textured GLB with Stable Fast 3D on a private Modal GPU worker, then offers rotation/download and saved-model history. Hugging Face access is attached and generation is enabled locally. One genuine reconstruction of the official chair sample passed, including textured browser rendering, rotation and download; electronics quality still needs validation. See [photo-to-3D setup and validation](docs/PHOTO_TO_3D.md). Live microphone backlog is now paced, and delivery bursts report a gap instead of closing the session.
 
 Earlier 13 October implementation: the five-family component reference catalogue has been superseded in the main interface by photo-to-3D. Its original source/metadata remain available for historical records. The 200,000-token coaching cap remains removed; usage is still logged.
 

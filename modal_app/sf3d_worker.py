@@ -2,7 +2,7 @@
 
 Deploy with the project SDK:
   python -m modal deploy modal_app/sf3d_worker.py --env main
-Set SHOWONCE_HF_SECRET=showonce-huggingface before deployment once access is ready.
+Requires the showonce-huggingface Secret with HF_TOKEN before deployment.
 No public GPU endpoint is created. ShowOnce calls authenticated Modal functions.
 """
 import os
@@ -13,8 +13,10 @@ WEIGHT_REVISION = 'f0c9a8ffd62cb1bbc8a7a53c9f87a0be1b6be778'
 MODEL = 'stabilityai/stable-fast-3d'
 app = modal.App('showonce-sf3d')
 cache = modal.Volume.from_name('showonce-sf3d-cache', create_if_missing=True)
-secret_name = os.getenv('SHOWONCE_HF_SECRET', '').strip()
-hf_secrets = [modal.Secret.from_name(secret_name, required_keys=['HF_TOKEN'])] if secret_name else []
+# Modal imports this module inside containers too. Define the same dependencies
+# locally and remotely; a local-only environment conditional breaks hydration.
+HF_SECRET_NAME = 'showonce-huggingface'
+hf_secrets = [modal.Secret.from_name(HF_SECRET_NAME, required_keys=['HF_TOKEN'])]
 
 # Build CUDA extensions on the CPU builder, targeting only the chosen A10.
 gpu_image = (
@@ -48,7 +50,7 @@ def prepare_model():
         if data.get('revision') == WEIGHT_REVISION and (Path(data['path'])/'model.safetensors').exists() and Path('/cache/u2net/u2net.onnx').exists():
             return {'ready':True,'model':MODEL,'revision':WEIGHT_REVISION,'cached':True}
     if not os.getenv('HF_TOKEN'):
-        raise RuntimeError('Accept the model licence and configure the showonce-huggingface Modal secret, then redeploy with SHOWONCE_HF_SECRET set.')
+        raise RuntimeError('Accept the model licence and configure HF_TOKEN in the showonce-huggingface Modal secret.')
     path = snapshot_download(repo_id=MODEL, revision=WEIGHT_REVISION, token=os.environ['HF_TOKEN'],
         cache_dir='/cache/hf', allow_patterns=['config.yaml','model.safetensors'])
     # Prepare the background model on the CPU too, avoiding GPU download time.
@@ -105,7 +107,7 @@ class SF3DWorker:
                 'model':MODEL,'revision':WEIGHT_REVISION,'gpu':'A10','texture_resolution':1024}
 
 @app.function(image=prepare_image, cpu=.125, memory=256, timeout=30, retries=0, scaledown_window=5,
-              env={'SHOWONCE_HF_SECRET_ATTACHED':'true' if secret_name else 'false'})
+              env={'SHOWONCE_HF_SECRET_ATTACHED':'true'})
 def readiness():
     # Deployment status only. Does not start a GPU or download model weights.
     return {'model':MODEL,'source_revision':SOURCE_REVISION,'weight_revision':WEIGHT_REVISION,
