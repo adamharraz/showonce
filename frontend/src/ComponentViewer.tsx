@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { componentModel, disposeModel } from "./component-models";
+import { USDLoader } from "three/addons/loaders/USDLoader.js";
+import importedEsp32URL from "./assets/models/ESP32_Wroom.usdz?url";
+import { prepareImportedEsp32 } from "./imported-esp32";
 import type { CatalogPart, PartVariant } from "./components-api";
 
 export default function ComponentViewer({
@@ -16,6 +19,9 @@ export default function ComponentViewer({
   const container = useRef<HTMLDivElement>(null);
   const reset = useRef<() => void>(() => {});
   const [unavailable, setUnavailable] = useState(false);
+  const [assetState, setAssetState] = useState<
+    "loading" | "ready" | "error" | "procedural"
+  >("procedural");
   useEffect(() => {
     const host = container.current!;
     let renderer: THREE.WebGLRenderer;
@@ -58,9 +64,31 @@ export default function ComponentViewer({
     const grid = new THREE.GridHelper(12, 24, 0x39525e, 0x233a44);
     grid.position.y = -0.03;
     scene.add(grid);
-    const model = componentModel(part, variant, pinId);
-    scene.add(model);
     let alive = true;
+    if (part.asset === "esp32" && !variant) {
+      setAssetState("loading");
+      new USDLoader().load(
+        importedEsp32URL,
+        (source) => {
+          if (!alive) {
+            disposeModel(source);
+            return;
+          }
+          const model = prepareImportedEsp32(source);
+          scene.add(model);
+          setAssetState("ready");
+        },
+        undefined,
+        () => {
+          if (!alive) return;
+          setAssetState("error");
+          scene.add(componentModel(part));
+        },
+      );
+    } else {
+      setAssetState("procedural");
+      scene.add(componentModel(part, variant, pinId));
+    }
     const resize = new ResizeObserver(() => {
       if (!alive) return;
       const { width, height } = host.getBoundingClientRect();
@@ -102,6 +130,50 @@ export default function ComponentViewer({
   return (
     <div className="component-viewer-wrap">
       <div ref={container} className="component-viewer" />
+      {part.asset === "esp32" && (
+        <div className="imported-model-note">
+          {variant ? (
+            <p>
+              Confirmed 30-pin variant: showing its separate reference and pin
+              highlights. The imported model has 38 pins.
+            </p>
+          ) : (
+            <p role="status">
+              {assetState === "loading"
+                ? "Loading the supplied ESP32 model…"
+                : assetState === "error"
+                  ? "The supplied model could not load. Showing the nominal reference."
+                  : "Supplied 38-pin visual reference; not a verified match to your physical board. Pin lettering is hidden."}
+            </p>
+          )}
+          <small>
+            <a
+              href="https://sketchfab.com/3d-models/esp32-wroom-fd714190aacc4e3f9c26b8d7e27807fc"
+              target="_blank"
+              rel="noreferrer"
+            >
+              ESP32 Wroom
+            </a>{" "}
+            by{" "}
+            <a
+              href="https://sketchfab.com/TER1Z"
+              target="_blank"
+              rel="noreferrer"
+            >
+              TER1Z
+            </a>
+            ,{" "}
+            <a
+              href="https://creativecommons.org/licenses/by/4.0/"
+              target="_blank"
+              rel="noreferrer"
+            >
+              CC BY 4.0
+            </a>
+            . Display orientation/scale adjusted; lettering hidden.
+          </small>
+        </div>
+      )}
       {unavailable && (
         <div className="component-viewer-fallback">
           <strong>{part.name}</strong>

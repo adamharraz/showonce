@@ -117,7 +117,13 @@ def test_catalogue_metadata_requires_auth_and_has_no_lesson_checklist(component_
     catalogue=component_client.get('/api/components/catalogue',headers=headers).json()
     assert len(catalogue['parts'])==6 # five supported families plus explicit unknown
     esp=catalogue['parts'][0]; pins=esp['variants'][0]['pins']
-    assert next(p for p in pins if p['id']=='D23')['z']==pytest.approx(-2.1)
+    assert next(p for p in pins if p['id']=='D23')['z']==pytest.approx(-1.778)
+    assert esp['variants'][0]['id'] == 'devkit-v1-30'
+    from app.components import LEFT, RIGHT
+    assert [p['id'] for p in pins] == LEFT + RIGHT
+    for row, x in [(pins[:15], -1.143), (pins[15:], 1.143)]:
+        assert all(p['x'] == pytest.approx(x) for p in row)
+        assert [p['z'] for p in row] == pytest.approx([(7-i)*2.54*.1 for i in range(15)])
     assert len(pins)==30 and len({p['id'] for p in pins})==30
     assert all('steps' not in p and 'target_circuit' not in p for p in catalogue['parts'])
 

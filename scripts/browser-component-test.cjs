@@ -18,6 +18,9 @@ const fs=require('fs');let browser;let stage='start';
     await page.getByRole('img',{name:'Interactive 3D reference: '+name,exact:true}).waitFor();
   }
   await browse.getByRole('button',{name:'ESP32 development board',exact:true}).click();
+  await panel.getByText('Supplied 38-pin visual reference; not a verified match to your physical board. Pin lettering is hidden.', {exact:true}).waitFor();
+  await page.waitForTimeout(300);
+  await page.locator('.component-viewer-wrap').screenshot({path:'artifacts/ui/imported-esp32.png'});
   if(await page.getByLabel('Highlight a reference pin').count())throw Error('Unconfirmed catalogue preview exposed pin layout');
   if(await page.getByRole('button',{name:'Identify visible parts',exact:true}).isEnabled())throw Error('No-camera inspection should be disabled');
   await page.getByPlaceholder('For example, assembling a breadboard circuit').fill('Synthetic component-library transport check');

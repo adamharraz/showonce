@@ -1,4 +1,19 @@
 /* Colour lives in the welcoming workbench; task evidence and tools stay readable. */
+.imported-model-note {
+  margin: 12px 0 44px;
+  padding: 10px 12px;
+  background: #edf4fa;
+  color: #40536d;
+  border-radius: 6px;
+}
+.imported-model-note p {
+  margin: 0 0 6px;
+  font-size: 12px;
+}
+.imported-model-note small {
+  font-size: 11px;
+}
+.imported-model-note a { color: #1459b5; text-decoration: underline; }
 .logo {
   color: #155fc4;
 }
