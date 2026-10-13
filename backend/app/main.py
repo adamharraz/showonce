@@ -100,6 +100,7 @@ def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_pro
     @app.get('/api/lessons')
     async def lessons(current=Depends(user)):
         records = await store.all('lesson')
+        sources = {s['id']: s['source'] for s in await store.all('session') if s['mode'] == 'teach'}
         result = []
         for record in records:
             if record['owner_id'] == current.id or record['latest_version']:
@@ -108,7 +109,9 @@ def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_pro
                 else:
                     published = await store.get('version', f"{record['id']}-v{record['latest_version']}")
                     draft = published['draft']
-                result.append({'id': record['id'], 'title': draft['title'], 'summary': draft['summary'], 'step_count': len(draft['steps']), 'latest_version': record['latest_version'], 'owned': record['owner_id'] == current.id, 'created_at': record['created_at']})
+                evidence = list(dict.fromkeys(fid for step in draft['steps'] for fid in step['evidence_ids']))[:4]
+                questions = draft['questions'] + [q for step in draft['steps'] for q in step['questions']]
+                result.append({'id': record['id'], 'title': draft['title'], 'summary': draft['summary'], 'step_count': len(draft['steps']), 'latest_version': record['latest_version'], 'owned': record['owner_id'] == current.id, 'created_at': record['created_at'], 'evidence_ids': evidence, 'source': sources.get(record['session_id']), 'unresolved_count': sum(not q['answer'].strip() for q in questions) if record['owner_id'] == current.id else 0})
         return sorted(result, key=lambda x: x['created_at'], reverse=True)
 
     @app.get('/api/sessions', response_model=list[SessionRecord])
@@ -449,6 +452,12 @@ def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_pro
     dist = Path(__file__).resolve().parents[2] / 'frontend' / 'dist'
     if (dist / 'assets').exists():
         app.mount('/assets', StaticFiles(directory=dist / 'assets'), name='assets')
+
+    @app.get('/favicon.svg', include_in_schema=False)
+    async def favicon():
+        if not (dist / 'favicon.svg').exists():
+            raise HTTPException(404, 'Icon not found')
+        return FileResponse(dist / 'favicon.svg', media_type='image/svg+xml')
 
     @app.get('/{path:path}')
     async def spa(path: str):

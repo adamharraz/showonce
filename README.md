@@ -4,13 +4,15 @@ One live demonstration becomes a reviewed, reusable lesson. Students then practi
 
 ## Current delivery
 
+Hosted competition demo: **https://showonce.onrender.com** on Render Free, using protected demo access and temporary local storage. The redesigned interface, lesson previews/filters, entry consent and attributed ESP32 reference are merged into `main`. Export anything you need before the free service sleeps, restarts or redeploys. No Supabase project is required for this demo.
+
 Latest 13 October update: the main 3D workflow uses **Gemini 3.8 Live recognition → prepared component references → user confirmation**. ESP32, breadboard, LED, resistor and wire models render locally in the browser. Browsing requires no AI request or GPU generation; an explicit camera inspection uses the existing Live connection. Exact pin labels require confirmation of the supported ESP32 DevKit V1 30-pin variant; other boards remain generic. See [component library and validation](docs/COMPONENT_LIBRARY.md). Live microphone backlog is paced, and delivery bursts report a gap instead of closing the session.
 
 Earlier 13 October implementation: Stable Fast 3D was deployed on Modal and passed an official chair-sample generation test, but a subsequent real ESP32 photo produced hands/people while omitting the board. It has been replaced in the main interface by the component catalogue, and local mesh generation is disabled. Its original source and private saved outputs remain available for historical records; [photo-to-3D notes](docs/PHOTO_TO_3D.md) describe that experiment. The 200,000-token coaching cap remains removed; usage is still logged.
 
 Implemented: React/TypeScript capture and review app, FastAPI backend, webcam/screen/phone capture, temporary narration, windowed Gemini 3.5 Flash-Lite analysis, live camera/voice coaching with a side-by-side assistant, persistent observation ledger, clarification and editing, immutable published versions, practice feedback guards, private evidence, exports, failure recovery, free-tier controls, deployment configuration and evaluation tools.
 
-**Real ER2 streaming, standard ER2 and Flash Lite requests passed the local access gate on 8 October 2026.** A real Flash Lite pipeline extracted a tutorial from synthetic before/after screenshots and identified a missing circle in a synthetic student image. This verifies API integration, not ESP32/Sheets accuracy, narration, real-device capture or TRL4. Actual account quotas, hosted deployment and beginner pilots remain unverified. The app never substitutes canned responses for live AI; fake model results exist only in tests.
+**Real ER2 streaming, standard ER2 and Flash Lite requests passed the local access gate on 8 October 2026.** A real Flash Lite pipeline extracted a tutorial from synthetic before/after screenshots and identified a missing circle in a synthetic student image. This verifies API integration, not ESP32/Sheets accuracy, narration, real-device capture or TRL4. Actual account quotas and beginner pilots remain unverified. The app never substitutes canned responses for live AI; fake model results exist only in tests.
 
 The local app works without cloud credentials. This workspace has a private Gemini key and its Free-tier guard enabled following the owner's confirmation that paid billing is absent. Clones need their own key and Free-tier confirmation. The latest 12 October request adds an explicit Live Coach using `gemini-3.8-live` for real-time camera/voice conversation. Existing lesson processing stays pinned to `gemini-3.5-flash-lite`. Both identifiers are fixed, and no model fallback is enabled. Earlier ER2 access-gate results above are historical. See `docs/LIVE_COACH.md` for live setup, cost assumptions, limits and validation.
 
@@ -89,7 +91,7 @@ Run `python scripts/check_hosted.py https://your-service.onrender.com` to verify
 
 ## Optional durable hosting with Supabase Free
 
-Prepared configuration is provided; deployment has **not** been performed.
+Supabase deployment has **not** been performed; the active hosted demo uses temporary local storage.
 
 1. Create a Supabase Free project. Run `supabase/schema.sql` in its SQL editor. It creates backend-only records with RLS and a private `showonce` screenshot bucket.
 2. In Supabase Auth, disable **Allow new users to sign up**. This dashboard setting is required; SQL does not disable registration. Use team-provisioned adult accounts only.

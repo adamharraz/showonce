@@ -111,6 +111,24 @@ def test_published_version_is_immutable_and_export_has_evidence(client):
         assert 'lesson.json' in z.namelist()
         assert any(p.startswith('screenshots/') for p in z.namelist())
 
+def test_library_previews_use_published_evidence_for_students(client):
+    headers, session, lesson, version = publish_lesson(client)
+    draft = lesson['draft']
+    draft['steps'][0]['evidence_ids'] = []
+    draft['steps'][0]['provenance'] = 'instructor-confirmed'
+    draft['steps'][0]['criteria'][0]['mode'] = 'manual'
+    draft['questions'][0]['answer'] = ''
+    assert client.patch('/api/lessons/'+lesson['id']+'/draft', headers=headers, json={'revision':lesson['revision'], 'draft':draft}).status_code == 200
+    owner = client.get('/api/lessons', headers=headers).json()[0]
+    assert owner['evidence_ids'] == []
+    assert owner['unresolved_count'] == 1
+    student_headers, _ = login(client, 'student')
+    student = client.get('/api/lessons', headers=student_headers).json()[0]
+    assert student['evidence_ids'] == version['draft']['steps'][0]['evidence_ids']
+    assert student['source'] == 'camera'
+    assert student['unresolved_count'] == 0
+    assert client.get('/api/frames/'+student['evidence_ids'][0], headers=student_headers).status_code == 200
+
 def test_student_cannot_access_private_drafts_or_create_teacher_session(client):
     headers,session,lesson=complete_teaching(client)
     student,_=login(client,'student')

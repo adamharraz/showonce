@@ -31,11 +31,19 @@ class Part(Strict):
 # This is ONE 30-pin board layout, not the pinout of every ESP32/WROOM board.
 LEFT = ['VIN', 'GND.2', 'D13', 'D12', 'D14', 'D27', 'D26', 'D25', 'D33', 'D32', 'D35', 'D34', 'VN', 'VP', 'EN']
 RIGHT = ['3V3', 'GND.1', 'D15', 'D2', 'D4', 'RX2', 'TX2', 'D5', 'D18', 'D19', 'D21', 'RX0', 'TX0', 'D22', 'D23']
+# Same nominal grid as frontend/src/component-models.ts ESP32 MM block.
+# x=±rowSpacing/2*scale; z=((count-1)/2-i)*pitch*scale; +z is USB.
+DEVKIT_SCENE_UNITS_PER_MM = 0.1
+DEVKIT_PIN_PITCH_MM = 2.54  # Wokwi board.json confirms adjacent y pitch.
+DEVKIT_ROW_SPACING_MM = 22.86  # User target; Wokwi graphic instead spans 25.53 mm.
+DEVKIT_PINS_PER_ROW = 15  # Pinned LEFT/RIGHT lists, unchanged.
 DEVKIT = Variant(id='devkit-v1-30', name='ESP32 DevKit V1 · 30 pins',
     description='Confirm 15 headers on each side and the complete matching printed pin order. WROOM on the shield alone is insufficient.',
     source='https://github.com/wokwi/wokwi-elements/blob/72d8b5b1f472121987d8c74b60a0e7a5d756c54c/src/esp32-devkit-v1-element.ts',
-    pins=[Pin(id=label, label=label.replace('GND.1','GND').replace('GND.2','GND'), x=x, z=2.1-i*.3)
-          for x, labels in [(-1.05, LEFT), (1.05, RIGHT)] for i, label in enumerate(labels)])
+    pins=[Pin(id=label, label=label.replace('GND.1','GND').replace('GND.2','GND'),
+              x=x * DEVKIT_SCENE_UNITS_PER_MM,
+              z=((DEVKIT_PINS_PER_ROW-1)/2-i) * DEVKIT_PIN_PITCH_MM * DEVKIT_SCENE_UNITS_PER_MM)
+          for x, labels in [(-DEVKIT_ROW_SPACING_MM/2, LEFT), (DEVKIT_ROW_SPACING_MM/2, RIGHT)] for i, label in enumerate(labels)])
 PARTS = [
     Part(id='esp32', name='ESP32 development board', asset='esp32',
          description='A generic development-board reference; an ESP32 family identification does not establish the exact board.',

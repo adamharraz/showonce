@@ -79,45 +79,244 @@ export function componentModel(
   }
   switch (part.asset) {
     case "esp32": {
-      box(2.6, 0.14, 5.5, 0, 0.12, 0, material(0x125351));
-      box(1.7, 0.35, 2.4, 0, 0.38, -0.8, metal);
-      box(1.6, 0.08, 0.85, 0, 0.24, -2.35, black);
+      // mm throughout; 0.1 scene unit/mm uniformly on x/y/z. Pin metadata uses
+      // the identical grid in backend/app/components.py: x=±22.86/2*0.1,
+      // z=(14/2-i)*2.54*0.1. Keep LEFT/RIGHT order; +z is the USB end.
+      const SCENE_UNITS_PER_MM = 0.1;
+      const MM = {
+        pcbWidth: 27.9, // User target; not verified by Wokwi's differing drawing.
+        pcbLength: 54, // User target; Wokwi drawing is ~53–54.053, not a CAD source.
+        pcbThickness: 1.6, // User nominal target; board stack-up unverified.
+        pinCountPerRow: 15, // Pinned Wokwi pinInfo (count, not a dimension).
+        pinPitch: 2.54, // Wokwi boards/esp32-devkit-v1/board.json adjacent pin y.
+        rowSpacing: 22.86, // User target; Wokwi board.json instead spans 25.53 mm.
+        headerWidth: 2.54, // User nominal square position width.
+        headerHeight: 8.5, // User nominal above-board height; unverified header part.
+        headerPlasticInset: 0.2, // Assumed contact reveal; housing ends below metal to avoid coplanar faces.
+        contactWidth: 0.64, // Assumed square contact; no header manufacturer specified.
+        moduleWidth: 18, // Espressif ESP32-WROOM-32 datasheet v3.8, §9.
+        moduleLength: 25.5, // Same source: entire module, NOT the metal shield alone.
+        moduleHeight: 3.1, // Same source: entire module envelope height.
+        antennaLength: 6, // Assumed antenna/shield partition; only the overall envelope is verified.
+        modulePcbThickness: 0.8, // Same source §9 module PCB thickness.
+        antennaOverhang: 1.5, // Assumed placement to meet requested overhang; unverified.
+        antennaTraceWidth: 11, // Existing visual motif converted at 10 mm/scene unit; not RF geometry.
+        antennaTraceThickness: 0.3, // Existing motif, unverified.
+        antennaTraceDepth: 0.35, // Existing motif, unverified.
+        antennaTracePitch: 1.5, // Existing motif, unverified.
+        usbWidth: 9, // Existing 0.9 scene footprint ×10; connector type unverified.
+        usbLength: 6, // Existing 0.6 scene footprint ×10; unverified.
+        usbHeight: 3.8, // Existing 0.38 scene footprint ×10; unverified.
+        usbZ: 24.5, // Existing +2.45 end/centre ×10; placement unverified.
+        usbOpeningWidth: 6.3, // Existing detail ×10; unverified.
+        usbOpeningHeight: 1.8, // Existing detail ×10; unverified.
+        usbOpeningDepth: 0.4, // Existing detail ×10; unverified.
+        usbOpeningZ: 27.6, // Existing +2.76 centre ×10; unverified.
+        chipWidth: 4.2, // Existing CP2102-like footprint ×10; package unverified.
+        chipLength: 4.5, // Existing footprint ×10; unverified.
+        chipHeight: 1.5, // Existing footprint ×10; unverified.
+        chipZ: 12.5, // Existing +1.25 centre ×10; unverified.
+        buttonWidth: 6, // User approximate target; exact switch unverified.
+        buttonHeight: 4.5, // User approximate target; exact switch unverified.
+        buttonX: 5.8, // Assumed symmetric placement clear of USB/headers/holes; unverified.
+        buttonZ: 18, // Assumed USB-end placement clear of CP2102; unverified.
+        holeDiameter: 3.2, // User target; mounting-hole diameter unverified.
+        holeX: 10.5, // Assumed centres, clear of rows and PCB edge; unverified.
+        holeZ: 23.8, // Assumed centres; unverified.
+        highlightRadius: 1.1, // Display annotation, inside a 2.54 mm header position.
+        highlightTube: 0.15, // Display annotation, not physical copper geometry.
+        labelOffset: 2, // Display annotation above header, not a board dimension.
+        labelXMultiplier: 1.75, // Existing annotation offset (dimensionless).
+        pinLabelWidth: 13, // Existing sprite width ×10; display annotation only.
+        moduleLabelWidth: 14, // Existing sprite width ×10; display annotation only.
+      };
+      const unit = (mm: number) => mm * SCENE_UNITS_PER_MM;
+      const mmBox = (
+        w: number,
+        h: number,
+        d: number,
+        x: number,
+        y: number,
+        z: number,
+        mat: THREE.Material,
+      ) => box(unit(w), unit(h), unit(d), unit(x), unit(y), unit(z), mat);
+      const pcb: THREE.Mesh<THREE.BufferGeometry> = mmBox(
+        MM.pcbWidth,
+        MM.pcbThickness,
+        MM.pcbLength,
+        0,
+        MM.pcbThickness / 2,
+        0,
+        material(0x237849),
+      );
+      // Actual through-holes, not dark cylinders drawn on an intact PCB.
+      const outline = new THREE.Shape();
+      outline.moveTo(unit(-MM.pcbWidth / 2), unit(-MM.pcbLength / 2));
+      outline.lineTo(unit(MM.pcbWidth / 2), unit(-MM.pcbLength / 2));
+      outline.lineTo(unit(MM.pcbWidth / 2), unit(MM.pcbLength / 2));
+      outline.lineTo(unit(-MM.pcbWidth / 2), unit(MM.pcbLength / 2));
+      outline.closePath();
+      for (const x of [-MM.holeX, MM.holeX])
+        for (const z of [-MM.holeZ, MM.holeZ]) {
+          const hole = new THREE.Path();
+          hole.absarc(
+            unit(x),
+            unit(z),
+            unit(MM.holeDiameter / 2),
+            0,
+            Math.PI * 2,
+            true,
+          );
+          outline.holes.push(hole);
+        }
+      pcb.geometry.dispose();
+      pcb.geometry = new THREE.ExtrudeGeometry(outline, {
+        depth: unit(MM.pcbThickness),
+        bevelEnabled: false,
+        curveSegments: 32,
+      });
+      pcb.geometry.rotateX(-Math.PI / 2);
+      pcb.position.set(0, 0, 0); // PCB bottom y=0; top y=1.6 mm.
+      pcb.name = "esp32-pcb";
+      const moduleZ =
+        -MM.pcbLength / 2 - MM.antennaOverhang + MM.moduleLength / 2;
+      const shieldLength = MM.moduleLength - MM.antennaLength;
+      const shield = mmBox(
+        MM.moduleWidth,
+        MM.moduleHeight,
+        shieldLength,
+        0,
+        MM.pcbThickness + MM.moduleHeight / 2,
+        moduleZ + MM.antennaLength / 2,
+        metal,
+      );
+      shield.name = "esp32-shield";
+      const antennaZ = moduleZ - shieldLength / 2;
+      mmBox(
+        MM.moduleWidth,
+        MM.modulePcbThickness,
+        MM.antennaLength,
+        0,
+        MM.pcbThickness + MM.modulePcbThickness / 2,
+        antennaZ,
+        black,
+      );
       for (let i = 0; i < 4; i++)
-        box(1.1, 0.03, 0.035, 0, 0.3, -2.62 + i * 0.15, gold);
-      box(0.9, 0.38, 0.6, 0, 0.36, 2.45, metal);
-      box(0.63, 0.18, 0.04, 0, 0.37, 2.76, black);
-      box(0.42, 0.15, 0.45, 0, 0.29, 1.25, black);
-      for (const x of [-1.05, 1.05]) box(0.3, 0.3, 4.5, x, 0.3, 0, black);
-      if (variant)
-        for (const pin of variant.pins) {
-          const highlighted = pin.id === pinId;
-          box(
-            0.12,
-            0.18,
-            0.12,
-            pin.x,
-            0.5,
-            pin.z,
+        mmBox(
+          MM.antennaTraceWidth,
+          MM.antennaTraceThickness,
+          MM.antennaTraceDepth,
+          0,
+          MM.pcbThickness +
+            MM.modulePcbThickness +
+            MM.antennaTraceThickness / 2,
+          antennaZ + (i - 1.5) * MM.antennaTracePitch,
+          gold,
+        );
+      mmBox(
+        MM.usbWidth,
+        MM.usbHeight,
+        MM.usbLength,
+        0,
+        MM.pcbThickness + MM.usbHeight / 2,
+        MM.usbZ,
+        metal,
+      );
+      mmBox(
+        MM.usbOpeningWidth,
+        MM.usbOpeningHeight,
+        MM.usbOpeningDepth,
+        0,
+        MM.pcbThickness + MM.usbHeight / 2,
+        MM.usbOpeningZ,
+        black,
+      );
+      mmBox(
+        MM.chipWidth,
+        MM.chipHeight,
+        MM.chipLength,
+        0,
+        MM.pcbThickness + MM.chipHeight / 2,
+        MM.chipZ,
+        black,
+      );
+      for (const x of [-MM.buttonX, MM.buttonX])
+        mmBox(
+          MM.buttonWidth,
+          MM.buttonHeight,
+          MM.buttonWidth,
+          x,
+          MM.pcbThickness + MM.buttonHeight / 2,
+          MM.buttonZ,
+          black,
+        );
+      const headerTop = MM.pcbThickness + MM.headerHeight;
+      const housingHeight = MM.headerHeight - MM.headerPlasticInset;
+      for (const x of [-MM.rowSpacing / 2, MM.rowSpacing / 2])
+        mmBox(
+          MM.headerWidth,
+          housingHeight,
+          MM.pinCountPerRow * MM.pinPitch,
+          x,
+          MM.pcbThickness + housingHeight / 2,
+          0,
+          black,
+        );
+      // Contacts exist even for a generic preview; pin identity/labels still
+      // require a confirmed supported variant supplied by ComponentPanel.
+      for (const x of [-MM.rowSpacing / 2, MM.rowSpacing / 2])
+        for (let i = 0; i < MM.pinCountPerRow; i++) {
+          const z = ((MM.pinCountPerRow - 1) / 2 - i) * MM.pinPitch;
+          const pin = variant?.pins.find(
+            (p) =>
+              Math.abs(p.x - unit(x)) < 1e-9 && Math.abs(p.z - unit(z)) < 1e-9,
+          );
+          const highlighted = !!pin && pin.id === pinId;
+          const contact = mmBox(
+            MM.contactWidth,
+            MM.headerHeight,
+            MM.contactWidth,
+            x,
+            MM.pcbThickness + MM.headerHeight / 2,
+            z,
             highlighted ? material(0x65ffca) : gold,
           );
+          contact.name = `esp32-contact-${x < 0 ? "left" : "right"}-${i}`;
           if (highlighted) {
             const ring = new THREE.Mesh(
-              new THREE.TorusGeometry(0.21, 0.03, 8, 32),
+              new THREE.TorusGeometry(
+                unit(MM.highlightRadius),
+                unit(MM.highlightTube),
+                8,
+                32,
+              ),
               material(0x65ffca),
             );
             ring.rotation.x = -Math.PI / 2;
-            ring.position.set(pin.x, 0.62, pin.z);
+            ring.position.set(
+              unit(x),
+              unit(headerTop - MM.headerPlasticInset),
+              unit(z),
+            );
+            ring.name = "esp32-highlight";
             group.add(ring);
-            label(pin.label, pin.x * 1.75, 0.95, pin.z, "#65ffca", 1.3);
+            label(
+              pin!.label,
+              unit(x * MM.labelXMultiplier),
+              unit(headerTop + MM.labelOffset),
+              unit(z),
+              "#65ffca",
+              unit(MM.pinLabelWidth),
+            );
           }
         }
       label(
         variant ? "DevKit V1" : "ESP32 · generic",
         0,
-        0.63,
-        -0.8,
+        unit(MM.pcbThickness + MM.moduleHeight + MM.labelOffset),
+        moduleZ * SCENE_UNITS_PER_MM,
         "#ecf5f7",
-        1.4,
+        unit(MM.moduleLabelWidth),
       );
       break;
     }

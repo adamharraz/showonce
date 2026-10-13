@@ -23,11 +23,9 @@ import {
   Pause,
   Play,
   Plus,
-  Radio,
   RefreshCw,
   Settings2,
   Smartphone,
-  Sparkles,
   Square,
   Trash2,
   Video,
@@ -38,7 +36,6 @@ import {
   Clock3,
   Mic,
   ScanLine,
-  ShieldCheck,
 } from "lucide-react";
 import {
   api,
@@ -67,6 +64,7 @@ import {
 import { acquire, useCapture } from "./capture";
 import { unresolved, reorder } from "./review";
 import LiveCoach from "./LiveCoach";
+import EntryConsent from "./EntryConsent";
 
 function usePath() {
   const [path, setPath] = useState(location.pathname);
@@ -95,12 +93,48 @@ function Banner({
   tone?: string;
 }) {
   return (
-    <div className={`banner ${tone}`}>
+    <div
+      className={`banner ${tone}`}
+      role={tone === "error" ? "alert" : undefined}
+    >
       <AlertCircle size={17} />
       <div>{children}</div>
     </div>
   );
 }
+function RoutedLink({
+  href,
+  navigate,
+  className,
+  children,
+}: {
+  href: string;
+  navigate: (path: string) => void;
+  className: string;
+  children: ReactNode;
+}) {
+  return (
+    <a
+      href={href}
+      className={className}
+      onClick={(event) => {
+        if (
+          event.button !== 0 ||
+          event.metaKey ||
+          event.ctrlKey ||
+          event.shiftKey ||
+          event.altKey
+        )
+          return;
+        event.preventDefault();
+        navigate(href);
+      }}
+    >
+      {children}
+    </a>
+  );
+}
+
 function Empty({
   title,
   children,
@@ -216,62 +250,29 @@ function Login({
   }
   return (
     <div className="login-wrap">
-      <div className="login-story">
-        <Logo />
-        <div>
-          <span className="eyebrow">
-            A LITTLE LESS EXPLAINING. A LOT MORE LEARNING.
-          </span>
-          <h1>
-            Great teaching
-            <br />
-            deserves a<br />
-            <em>second life.</em>
-          </h1>
-          <p>
-            Turn one live demonstration into a lesson your students can follow,
-            step by step.
-          </p>
-          <div className="login-flow">
-            <span>
-              <Video size={19} /> Demonstrate
-            </span>
-            <ChevronRight size={16} />
-            <span>
-              <Sparkles size={19} /> Review
-            </span>
-            <ChevronRight size={16} />
-            <span>
-              <GraduationCap size={19} /> Learn
-            </span>
-          </div>
-        </div>
-        <small>Built for hands-on learning · ShowOnce MVP</small>
+      <div className="login-art" aria-hidden="true">
+        <p className="welcome-wordmark">ShowOnce</p>
+        <p className="welcome-tagline">Learn by doing.</p>
       </div>
       <div className="login-panel">
-        <span className="badge">
-          <ShieldCheck size={14} /> Instructor-reviewed lessons
-        </span>
-        <h2>Welcome to ShowOnce</h2>
+        <Logo />
+
+        <h1>Sign in</h1>
         <p className="muted">
-          A demonstration is the beginning.
-          <br />A reusable lesson is what comes next.
+          Create and practice lessons for physical or screen-based tasks.
         </p>
         {config.local_login ? (
           <>
             <div className="local-note">
               <strong>Local development</strong>
-              <p>
-                Choose a role to explore the application on this computer.
-                Hosted accounts require sign-in.
-              </p>
+              <p>Choose a role for this local session.</p>
             </div>
             <button
               disabled={busy}
               className="button primary full"
               onClick={() => local("instructor")}
             >
-              Enter as instructor <ArrowRight size={17} />
+              Enter as instructor
             </button>
             <button
               disabled={busy}
@@ -301,6 +302,7 @@ function Login({
                   Demo access code
                   <input
                     type="password"
+                    name="demo-access-code"
                     autoComplete="current-password"
                     required
                     value={accessCode}
@@ -326,6 +328,7 @@ function Login({
                   Email
                   <input
                     type="email"
+                    name="email"
                     autoComplete="username"
                     required
                     value={email}
@@ -336,6 +339,7 @@ function Login({
                   Password
                   <input
                     type="password"
+                    name="password"
                     autoComplete="current-password"
                     required
                     value={password}
@@ -345,7 +349,7 @@ function Login({
               </>
             )}
             <button disabled={busy} className="button primary full">
-              {busy ? "Signing in…" : "Sign in"} <ArrowRight size={17} />
+              {busy ? "Signing in…" : "Sign in"}
             </button>
             <p className="fine">
               {config.demo_mode
@@ -387,205 +391,288 @@ function Library({
   const [lessons, setLessons] = useState<LessonCard[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [error, setError] = useState("");
-  useEffect(() => {
-    void Promise.all([
-      api<LessonCard[]>("/lessons"),
-      api<Session[]>("/sessions"),
-    ])
-      .then(([l, s]) => {
-        setLessons(l);
-        setSessions(s);
-      })
-      .catch((e) => setError(e.message));
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<"all" | "draft" | "published">("all");
+  const [query, setQuery] = useState("");
+  const [taskType, setTaskType] = useState<"all" | "physical" | "screen">(
+    "all",
+  );
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const [savedLessons, savedSessions] = await Promise.all([
+        api<LessonCard[]>("/lessons"),
+        api<Session[]>("/sessions"),
+      ]);
+      setLessons(savedLessons);
+      setSessions(savedSessions);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  const visibleLessons = lessons.filter(
+    (lesson) =>
+      (filter === "all" ||
+        (filter === "published"
+          ? !!lesson.latest_version
+          : !lesson.latest_version)) &&
+      (taskType === "all" ||
+        (taskType === "screen"
+          ? lesson.source === "screen"
+          : lesson.source === "camera" || lesson.source === "phone")) &&
+      `${lesson.title} ${lesson.summary}`
+        .toLowerCase()
+        .includes(query.toLowerCase().trim()),
+  );
+  const activePractice = sessions.find(
+    (s) => s.mode === "practice" && s.state !== "finished",
+  );
+  const featured =
+    lessons.find((l) => l.id === activePractice?.lesson_id) ||
+    lessons.find((l) => !!l.latest_version);
+  const drafts = lessons.filter((l) => l.owned && !l.latest_version);
   return (
     <>
-      <div className="page-heading">
-        <div>
-          <span className="eyebrow">YOUR TEACHING, MULTIPLIED</span>
-          <h1>Your lesson library</h1>
-          <p>One demonstration. Clear steps. More confident learners.</p>
-        </div>
-        {user.role === "instructor" && (
-          <button
-            className="button primary"
-            onClick={() => navigate("/studio")}
-          >
-            <Plus size={18} /> New demonstration
+      <section
+        className="electronics-welcome"
+        aria-label="ShowOnce learning workspace"
+      >
+        <p className="welcome-wordmark">ShowOnce</p>
+        <p className="welcome-tagline">Learn by doing.</p>
+        <button
+          className="button welcome-action"
+          onClick={() =>
+            navigate(user.role === "instructor" ? "/studio" : "/coach")
+          }
+        >
+          {user.role === "instructor"
+            ? "Record a demonstration"
+            : "Start live coaching"}
+        </button>
+      </section>
+      {error && (
+        <Banner tone="error">
+          {error}{" "}
+          <button className="text-button" onClick={() => void load()}>
+            Retry loading
           </button>
-        )}
-      </div>
-      {error && <Banner tone="error">{error}</Banner>}
-      {user.role === "instructor" && (
-        <section className="hero">
-          <div className="hero-copy">
-            <span className="hero-tag">
-              <span className="dot" /> LIVE DEMONSTRATION → REUSABLE LESSON
-            </span>
-            <h2>
-              Show it once.
-              <br />
-              Make every step count.
-            </h2>
-            <p>
-              Teach naturally. ShowOnce captures what happens,
-              <br className="desktop" /> builds the steps, and brings the lesson
-              together.
-            </p>
-            <button
-              className="button hero-button"
-              onClick={() => navigate("/studio")}
-            >
-              Start a demonstration <ArrowRight size={17} />
-            </button>
-            <span className="hero-foot">
-              <Clock3 size={13} /> Up to 5 minutes <span>·</span> You review
-              before students learn
-            </span>
-          </div>
-          <div className="hero-art" aria-hidden="true">
-            <div className="art-orbit orbit-one" />
-            <div className="art-orbit orbit-two" />
-            <div className="art-mini">
-              <span className="dot" /> LIVE <Video size={15} />
+        </Banner>
+      )}
+      {!loading && !error && featured && (
+        <section
+          className="practice-feature"
+          aria-labelledby="continue-heading"
+        >
+          <div className="practice-feature-body">
+            <div className="feature-media">
+              <LessonPreview lesson={featured} />
+              {featured.evidence_ids.length > 1 && (
+                <div
+                  className="frame-strip"
+                  aria-label="Demonstration reference frames"
+                >
+                  {featured.evidence_ids.map((id, i) => (
+                    <Evidence key={id} id={id} label={`Reference ${i + 1}`} />
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="art-card">
-              <div className="art-card-header">
-                <span className="art-icon">
-                  <Sparkles size={19} />
-                </span>
-                <span>
-                  Your demonstration
-                  <br />
-                  <small>Becomes something useful</small>
-                </span>
-              </div>
-              <div className="art-step">
-                <span>1</span>
-                <div>
-                  <strong>Capture the action</strong>
-                  <i />
-                </div>
-                <CheckCircle2 size={17} />
-              </div>
-              <div className="art-step">
-                <span>2</span>
-                <div>
-                  <strong>Make the steps clear</strong>
-                  <i />
-                </div>
-                <CheckCircle2 size={17} />
-              </div>
-              <div className="art-step">
-                <span>3</span>
-                <div>
-                  <strong>Guide the next learner</strong>
-                  <i />
-                </div>
-                <GraduationCap size={17} />
-              </div>
-              <div className="art-card-bottom">
-                <span>
-                  <Eye size={13} /> Reviewed by you
-                </span>
-                <ArrowRight size={14} />
-              </div>
-            </div>
-            <div className="art-float">
-              <Layers3 size={18} /> One moment. Many learners.
+            <div className="feature-copy">
+              <h2 id="continue-heading">
+                {activePractice ? "Continue practising" : "Ready to practise"}
+              </h2>
+              <h3>{activePractice?.title || featured.title}</h3>
+              <p className="feature-status">
+                {activePractice
+                  ? `Saved session · ${activePractice.state.replaceAll("_", " ")}`
+                  : `${featured.step_count} ${featured.step_count === 1 ? "step" : "steps"} · Published v${featured.latest_version}`}
+              </p>
+              {featured.summary && <p>{featured.summary}</p>}
+              <RoutedLink
+                className="button primary"
+                navigate={navigate}
+                href={
+                  activePractice
+                    ? `/practice/${activePractice.id}`
+                    : `/lesson/${featured.id}`
+                }
+              >
+                <Play size={17} />
+                {activePractice ? "Resume practice" : "Open lesson"}
+              </RoutedLink>
             </div>
           </div>
         </section>
       )}
-      <div className="stats">
-        <div>
-          <span className="stat-icon purple">
-            <BookOpen size={20} />
-          </span>
-          <div>
-            <strong>{lessons.filter((l) => l.latest_version).length}</strong>
-            <span>Published lessons</span>
+      <div
+        className={
+          "library-layout " + (drafts.length && !error ? "has-review" : "")
+        }
+      >
+        <section className="library-main" aria-labelledby="library-title">
+          <div className="library-section-heading">
+            <h1 id="library-title">Lesson library</h1>
+            <label className="lesson-search">
+              <span className="sr-only">Search lessons</span>
+              <input
+                type="search"
+                placeholder="Search lessons"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </label>
           </div>
-        </div>
-        <div>
-          <span className="stat-icon amber">
-            <FileText size={20} />
-          </span>
-          <div>
-            <strong>
-              {lessons.filter((l) => l.owned && !l.latest_version).length}
-            </strong>
-            <span>Awaiting review</span>
-          </div>
-        </div>
-        <div>
-          <span className="stat-icon green">
-            <Layers3 size={20} />
-          </span>
-          <div>
-            <strong>{lessons.reduce((sum, l) => sum + l.step_count, 0)}</strong>
-            <span>Steps in your library</span>
-          </div>
-        </div>
-      </div>
-      <div className="section-heading">
-        <h2>
-          All lessons <span className="count">{lessons.length}</span>
-        </h2>
-        <span className="muted small">Saved lessons are reusable</span>
-      </div>
-      {!lessons.length ? (
-        <div className="panel">
-          <Empty
-            title={
-              user.role === "instructor"
-                ? "Your first lesson starts with a demonstration"
-                : "Your lessons will appear here"
-            }
-          >
-            {user.role === "instructor"
-              ? "Start your camera or share your screen. You don’t need to write the steps first."
-              : "Ask your instructor to publish a lesson, then come back to begin."}
-          </Empty>
-        </div>
-      ) : (
-        <div className="lesson-grid">
-          {lessons.map((l) => (
-            <button
-              className="lesson-card"
-              key={l.id}
-              onClick={() =>
-                navigate(
-                  l.owned && !l.latest_version
-                    ? "/review/" + l.id
-                    : "/lesson/" + l.id,
-                )
-              }
-            >
-              <div className="lesson-card-top">
-                <span className="stat-icon purple">
-                  <BookOpen size={22} />
-                </span>
-                <span
-                  className={"badge " + (!l.latest_version ? "amber" : "green")}
+          <div className="library-filter-bar">
+            <div className="task-filters" role="group" aria-label="Task type">
+              {(["all", "physical", "screen"] as const).map((type) => (
+                <button
+                  key={type}
+                  aria-pressed={taskType === type}
+                  onClick={() => setTaskType(type)}
                 >
-                  {l.latest_version
-                    ? "Published · v" + l.latest_version
-                    : "Draft"}
-                </span>
+                  {type === "all"
+                    ? "All tasks"
+                    : type === "physical"
+                      ? "Physical tasks"
+                      : "On screen"}
+                </button>
+              ))}
+            </div>
+            <div className="library-toolbar">
+              <div
+                className="lesson-filters"
+                role="group"
+                aria-label="Filter lessons"
+              >
+                {(
+                  [
+                    "all",
+                    "published",
+                    ...(user.role === "instructor" ? ["draft"] : []),
+                  ] as const
+                ).map((value) => (
+                  <button
+                    key={value}
+                    aria-pressed={filter === value}
+                    onClick={() => setFilter(value as typeof filter)}
+                  >
+                    {value === "all"
+                      ? "All lessons"
+                      : value === "published"
+                        ? "Published"
+                        : "Drafts"}
+                    {!loading && (
+                      <span>
+                        {
+                          lessons.filter(
+                            (l) =>
+                              value === "all" ||
+                              (value === "published"
+                                ? !!l.latest_version
+                                : !l.latest_version),
+                          ).length
+                        }
+                      </span>
+                    )}
+                  </button>
+                ))}
               </div>
-              <h3>{l.title}</h3>
-              <p>{l.summary || "A lesson built from one demonstration."}</p>
-              <div className="lesson-card-bottom">
+            </div>
+            <p className="sr-only" role="status">
+              {!loading && !error
+                ? `${visibleLessons.length} ${visibleLessons.length === 1 ? "lesson" : "lessons"} shown`
+                : ""}
+            </p>
+          </div>
+          {loading ? (
+            <div className="library-loading" role="status">
+              Loading your lessons…
+            </div>
+          ) : error ? null : !visibleLessons.length ? (
+            <p className="fine" role="status">
+              {lessons.length ? "No matching lessons." : "No lessons yet."}
+            </p>
+          ) : (
+            <div className="lesson-grid">
+              {visibleLessons.map((l) => (
+                <RoutedLink
+                  className="lesson-card"
+                  key={l.id}
+                  navigate={navigate}
+                  href={
+                    l.owned && !l.latest_version
+                      ? "/review/" + l.id
+                      : "/lesson/" + l.id
+                  }
+                >
+                  <span className="lesson-thumbnail">
+                    <LessonPreview lesson={l} />
+                  </span>
+                  <div className="lesson-card-top">
+                    <span
+                      className={
+                        "badge " + (!l.latest_version ? "amber" : "green")
+                      }
+                    >
+                      {l.latest_version
+                        ? "Published · v" + l.latest_version
+                        : "Draft"}
+                    </span>
+                  </div>
+                  <h3>{l.title}</h3>
+                  <p>
+                    {l.summary ||
+                      (l.source === "screen"
+                        ? "Screen demonstration"
+                        : l.source
+                          ? "Physical demonstration"
+                          : "Demonstration")}
+                  </p>
+                  <div className="lesson-card-bottom">
+                    <span>
+                      <Layers3 size={14} /> {l.step_count}{" "}
+                      {l.step_count === 1 ? "step" : "steps"}
+                    </span>
+                    <ArrowRight size={17} />
+                  </div>
+                </RoutedLink>
+              ))}
+            </div>
+          )}
+        </section>
+        {!!drafts.length && !loading && !error && (
+          <aside className="review-queue" aria-labelledby="review-queue-title">
+            <h2 id="review-queue-title">In review</h2>
+            {drafts.slice(0, 3).map((l) => (
+              <RoutedLink
+                key={l.id}
+                className="review-queue-entry"
+                navigate={navigate}
+                href={`/review/${l.id}`}
+              >
+                <span className="lesson-thumbnail">
+                  <LessonPreview lesson={l} />
+                </span>
                 <span>
-                  <Layers3 size={14} /> {l.step_count} steps
+                  <strong>{l.title}</strong>
+                  <small>
+                    {l.unresolved_count
+                      ? `${l.unresolved_count} ${l.unresolved_count === 1 ? "question" : "questions"} to resolve`
+                      : "Ready for your review"}
+                  </small>
+                  <span className="review-link">Review draft</span>
                 </span>
-                <ArrowRight size={17} />
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
+              </RoutedLink>
+            ))}
+          </aside>
+        )}
+      </div>
       {!!sessions.filter(
         (s) =>
           s.mode === "practice" || !lessons.some((l) => l.id === s.lesson_id),
@@ -611,7 +698,7 @@ function Library({
                     )
                   }
                 >
-                  <span className="stat-icon purple">
+                  <span className="stat-icon teal">
                     <Video size={18} />
                   </span>
                   <div>
@@ -627,24 +714,18 @@ function Library({
           </div>
         </>
       )}
-      <div className="principles">
-        <div>
-          <Eye size={18} />
-          <strong>Evidence first</strong>
-          <p>Steps reference what was shown.</p>
-        </div>
-        <div>
-          <CircleHelp size={18} />
-          <strong>Room for uncertainty</strong>
-          <p>Unclear details become questions.</p>
-        </div>
-        <div>
-          <CheckCircle2 size={18} />
-          <strong>Always reviewed</strong>
-          <p>You approve the final lesson.</p>
-        </div>
-      </div>
     </>
+  );
+}
+
+function LessonPreview({ lesson }: { lesson: LessonCard }) {
+  return lesson.evidence_ids[0] ? (
+    <Evidence id={lesson.evidence_ids[0]} />
+  ) : (
+    <span className="lesson-preview-empty">
+      <Video size={24} />
+      <span>No reference image</span>
+    </span>
   );
 }
 
@@ -665,6 +746,7 @@ function SourcePicker({
         ] as const
       ).map(([s, Icon, title, desc]) => (
         <button
+          aria-pressed={value === s}
           className={value === s ? "selected" : ""}
           key={s}
           onClick={() => onChange(s)}
@@ -692,7 +774,6 @@ function Live({
 }) {
   const [source, setSource] = useState<Source>("camera");
   const [microphone, setMicrophone] = useState(true);
-  const [consent, setConsent] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const sessionRef = useRef(session);
   sessionRef.current = session;
@@ -884,7 +965,12 @@ function Live({
       setError((e as Error).message);
     }
   }
-  async function start() {
+  const captureConsent = useRef<HTMLDialogElement>(null);
+  async function start(confirmed = false) {
+    if (!confirmed) {
+      captureConsent.current?.showModal();
+      return;
+    }
     setError("");
     setBusy(true);
     let media: MediaStream | null = null;
@@ -1011,23 +1097,42 @@ function Live({
     <>
       <div className="page-heading">
         <div>
-          <span className="eyebrow">
-            {practice ? "LEARN BY DOING" : "THE DEMONSTRATION STUDIO"}
-          </span>
-          <h1>
-            {practice ? practice.draft.title : "Teach naturally. We’ll follow."}
-          </h1>
-          <p>
-            {practice
-              ? "Follow the reviewed lesson. Your instructor’s demonstration is your reference."
-              : "No script. No written checklist. Just show how it’s done."}
-          </p>
+          <h1>{practice ? practice.draft.title : "New demonstration"}</h1>
+          {practice && (
+            <p>Follow each step and compare your work with the reference.</p>
+          )}
         </div>
         <span className="badge">
           <Clock3 size={14} /> {practice ? "10" : "5"} minute session
         </span>
       </div>
       {error && <Banner tone="error">{error}</Banner>}
+      <dialog
+        ref={captureConsent}
+        className="capture-consent-dialog"
+        aria-labelledby="capture-consent-title"
+      >
+        <h2 id="capture-consent-title">Before you start</h2>
+        <p>
+          Everyone captured must be 18+ and consent to Google processing the
+          media. Keep private information off screen.
+        </p>
+        <form method="dialog">
+          <button className="button secondary" autoFocus>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="button primary"
+            onClick={() => {
+              captureConsent.current?.close();
+              void start(true);
+            }}
+          >
+            Confirm and start
+          </button>
+        </form>
+      </dialog>
       {notice && <Banner>{notice}</Banner>}
       {(!config.ai_configured || !config.free_tier_confirmed) && (
         <Banner tone="warning">
@@ -1039,10 +1144,7 @@ function Live({
       {!session ? (
         <div className="panel setup-panel">
           <div className="section-heading">
-            <h2>Choose your view</h2>
-            <span className="badge purple">
-              <Radio size={13} /> Live capture
-            </span>
+            <h2>Capture source</h2>
           </div>
           <SourcePicker value={source} onChange={setSource} />
           <div className="setup-bottom">
@@ -1057,19 +1159,10 @@ function Live({
                   <Mic size={16} /> Include natural narration
                 </label>
               )}
-              <label className="checkbox consent">
-                <input
-                  type="checkbox"
-                  checked={consent}
-                  onChange={(e) => setConsent(e.target.checked)}
-                />{" "}
-                Everyone captured is 18+ and consents to Google processing the
-                media. I will keep private information off screen.
-              </label>
             </div>
             <button
               className="button primary"
-              disabled={!consent || busy}
+              disabled={busy}
               onClick={() => void start()}
             >
               <Play size={17} />
@@ -1081,11 +1174,9 @@ function Live({
             </button>
           </div>
           <div className="setup-tip">
-            <Sparkles size={18} />
             <p>
-              Keep important details visible and pause briefly after each
-              action. Explain hidden settings naturally; unclear details can be
-              resolved during review.
+              Keep details visible. Pause after each action and narrate hidden
+              settings. Resolve unclear details during review.
             </p>
           </div>
         </div>
@@ -1248,7 +1339,6 @@ function Live({
           <aside className="panel observation-panel">
             <div className="section-heading">
               <h2>{practice ? "Your next step" : "Steps taking shape"}</h2>
-              <Sparkles size={17} className="purple-text" />
             </div>
             <p className="small muted">
               {practice
@@ -1375,10 +1465,7 @@ function Live({
                 ))}
               </div>
             ) : (
-              <Empty
-                title="The first step starts with you"
-                icon={<Sparkles size={26} />}
-              >
+              <Empty title="No observations yet" icon={<Eye size={26} />}>
                 Your observed actions will appear here once live AI analysis is
                 enabled.
               </Empty>
@@ -1533,11 +1620,10 @@ function Review({
     <>
       <div className="page-heading">
         <div>
-          <span className="eyebrow">YOUR EXPERTISE IS THE FINAL STEP</span>
-          <h1>Make the lesson yours.</h1>
+          <h1>Review lesson</h1>
           <p>
-            Check the instructions, clarify the gaps, then share it with your
-            students.
+            Check instructions, screenshots and checkpoints. Resolve required
+            questions before publishing.
           </p>
         </div>
         <span className="badge amber">
@@ -1603,6 +1689,7 @@ function Review({
                   <button
                     className="icon-button"
                     title="Move step up"
+                    aria-label="Move step up"
                     disabled={index === 0}
                     onClick={() =>
                       update({
@@ -1616,6 +1703,7 @@ function Review({
                   <button
                     className="icon-button"
                     title="Move step down"
+                    aria-label="Move step down"
                     disabled={index === draft.steps.length - 1}
                     onClick={() =>
                       update({
@@ -1629,6 +1717,7 @@ function Review({
                   <button
                     className="icon-button danger"
                     title="Delete step"
+                    aria-label="Delete step"
                     onClick={() =>
                       update({
                         ...draft,
@@ -1749,6 +1838,7 @@ function Review({
                     <button
                       className="icon-button danger"
                       title="Remove checkpoint"
+                      aria-label="Remove checkpoint"
                       onClick={() =>
                         updateStep(index, {
                           ...step,
@@ -1817,13 +1907,10 @@ function Review({
         </div>
         <aside>
           <div className="panel publish-panel">
-            <span className="stat-icon purple">
-              <ShieldCheck size={24} />
-            </span>
-            <h3>Ready for your students?</h3>
+            <h3>Publish lesson</h3>
             <p>
-              Publishing saves a fixed version. Future edits won’t change a
-              lesson a student is already following.
+              Publishing creates a fixed version. Later draft edits will not
+              change it.
             </p>
             <div className="review-check">
               <span>
@@ -1862,7 +1949,7 @@ function Review({
               }
               onClick={() => void revise()}
             >
-              <Sparkles size={16} /> Apply clarifications with AI
+              <RefreshCw size={16} /> Apply clarifications with AI
             </button>
             <button
               className="text-button"
@@ -1934,7 +2021,6 @@ function LessonView({
     <>
       <div className="page-heading">
         <div>
-          <span className="eyebrow">A DEMONSTRATION, NOW A LESSON</span>
           <h1>{d.title}</h1>
           <p>{d.summary}</p>
         </div>
@@ -2099,14 +2185,9 @@ function Setup({ config }: { config: Config }) {
     <>
       <div className="page-heading">
         <div>
-          <span className="eyebrow">A SMALL, HONEST PROTOTYPE</span>
-          <h1>Connection & validation</h1>
-          <p>
-            Know what’s connected, what’s been tested, and what still needs
-            evidence.
-          </p>
+          <h1>Settings</h1>
+          <p>Check service connections and prototype limits.</p>
         </div>
-        <span className="badge green">RM0 service target</span>
       </div>
       <div className="settings-grid">
         {config.demo_mode && (
@@ -2291,10 +2372,8 @@ function PhoneCapture({ id }: { id: string }) {
       <span className="badge">
         <Smartphone size={14} /> Paired camera
       </span>
-      <h1>A closer look.</h1>
-      <p>
-        Position your phone so the work and its important details are visible.
-      </p>
+      <h1>Phone camera</h1>
+      <p>Keep the work and important details in view.</p>
       {error && <Banner tone="error">{error}</Banner>}
       <div className="phone-video">
         <video ref={capture.videoRef} playsInline muted autoPlay />
@@ -2346,12 +2425,56 @@ function PhoneCapture({ id }: { id: string }) {
 }
 
 export default function App() {
+  const [entryConsent, setEntryConsent] = useState(
+    () => sessionStorage.getItem("showonce-entry-consent-v1") === "accepted",
+  );
   const [path, navigateRaw] = usePath();
   const navigate = useCallback((p: string) => navigateRaw(p), [navigateRaw]);
   const [config, setConfig] = useState<Config | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState("");
   const [mobileMenu, setMobileMenu] = useState(false);
+  const menuTrigger = useRef<HTMLButtonElement>(null);
+  const menuWasOpen = useRef(false);
+  useEffect(() => {
+    if (mobileMenu)
+      document
+        .querySelector<HTMLButtonElement>("#main-navigation button")
+        ?.focus();
+    else if (menuWasOpen.current) menuTrigger.current?.focus();
+    menuWasOpen.current = mobileMenu;
+  }, [mobileMenu]);
+  useEffect(() => {
+    const title = path.startsWith("/coach")
+      ? "Live Coach"
+      : path.startsWith("/capture/")
+        ? "Phone camera"
+        : !user
+          ? "Sign in"
+          : path.startsWith("/review/")
+            ? "Lesson review"
+            : path.startsWith("/practice/")
+              ? "Practice"
+              : path.startsWith("/lesson/")
+                ? "Published lesson"
+                : path.startsWith("/studio")
+                  ? "Create a lesson"
+                  : path === "/settings"
+                    ? "Connection and validation"
+                    : "Your lessons";
+    document.title = `${title} | ShowOnce`;
+    document
+      .querySelector<HTMLElement>("#main-content")
+      ?.focus({ preventScroll: true });
+    window.scrollTo(0, 0);
+  }, [path, user?.id]);
+  useEffect(() => {
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileMenu(false);
+    };
+    addEventListener("keydown", close);
+    return () => removeEventListener("keydown", close);
+  }, []);
   useEffect(() => {
     void api<Config>("/config")
       .then(async (c) => {
@@ -2373,6 +2496,15 @@ export default function App() {
     );
   if (path.startsWith("/capture/"))
     return <PhoneCapture id={path.split("/")[2]} />;
+  if (!entryConsent)
+    return (
+      <EntryConsent
+        onContinue={() => {
+          sessionStorage.setItem("showonce-entry-consent-v1", "accepted");
+          setEntryConsent(true);
+        }}
+      />
+    );
   if (!user) return <Login config={config} onLogin={setUser} />;
   const section = path.startsWith("/studio")
     ? "studio"
@@ -2387,17 +2519,22 @@ export default function App() {
   };
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
       <aside className={"sidebar " + (mobileMenu ? "open" : "")}>
         <Logo />
-        <span className="workspace-label">LEARNING WORKSPACE</span>
-        <nav>
+        <span className="workspace-label">Workspace</span>
+        <nav aria-label="Main navigation" id="main-navigation">
           <button
+            aria-current={section === "coach" ? "page" : undefined}
             className={section === "coach" ? "active" : ""}
             onClick={() => go("/coach")}
           >
             <Mic size={18} /> Live Coach
           </button>
           <button
+            aria-current={section === "library" ? "page" : undefined}
             className={section === "library" ? "active" : ""}
             onClick={() => go("/")}
           >
@@ -2405,29 +2542,22 @@ export default function App() {
           </button>
           {user.role === "instructor" && (
             <button
+              aria-current={section === "studio" ? "page" : undefined}
               className={section === "studio" ? "active" : ""}
               onClick={() => go("/studio")}
             >
-              <Video size={18} /> Demonstration studio
+              <Video size={18} /> Create a lesson
             </button>
           )}
           <button
+            aria-current={section === "settings" ? "page" : undefined}
             className={section === "settings" ? "active" : ""}
             onClick={() => go("/settings")}
           >
-            <Settings2 size={18} /> Connection & validation
+            <Settings2 size={18} /> Settings
           </button>
         </nav>
-        <div className="sidebar-note">
-          <span className="sidebar-note-icon">
-            <Sparkles size={19} />
-          </span>
-          <strong>Let the teaching flow.</strong>
-          <p>
-            ShowOnce follows your demonstration. Your expertise makes the lesson
-            complete.
-          </p>
-        </div>
+
         <div className="sidebar-bottom">
           <span className="avatar">
             {user.role === "instructor" ? "I" : "S"}
@@ -2449,10 +2579,13 @@ export default function App() {
           <button
             className="icon-button"
             title="Sign out"
+            aria-label="Sign out"
             onClick={() => {
               void logoutHostedAuth(config);
               setToken("");
               setUser(null);
+              sessionStorage.removeItem("showonce-entry-consent-v1");
+              setEntryConsent(false);
               navigate("/");
             }}
           >
@@ -2462,25 +2595,22 @@ export default function App() {
       </aside>
       <div className="workspace">
         <header className="topbar">
+          <span className="mobile-brand">
+            <Logo />
+          </span>
           <button
             className="icon-button mobile-menu"
-            title="Open navigation"
+            ref={menuTrigger}
+            aria-label={mobileMenu ? "Close navigation" : "Open navigation"}
+            aria-expanded={mobileMenu}
+            aria-controls="main-navigation"
             onClick={() => setMobileMenu(!mobileMenu)}
           >
             <Layers3 size={20} />
+            <span className="mobile-menu-label">
+              {mobileMenu ? "Close" : "Menu"}
+            </span>
           </button>
-          <span>
-            Workspace <ChevronRight size={13} />{" "}
-            <strong>
-              {section === "studio"
-                ? "Demonstration studio"
-                : section === "coach"
-                  ? "Live Coach"
-                  : section === "settings"
-                    ? "Connection & validation"
-                    : "Lesson library"}
-            </strong>
-          </span>
           <div>
             <span
               className={
@@ -2492,15 +2622,15 @@ export default function App() {
             >
               <span className="dot" />
               {config.ai_configured && config.free_tier_confirmed
-                ? "AI configured"
-                : "AI not connected"}
+                ? "AI ready"
+                : "AI offline"}
             </span>
             <span className="top-avatar">
               {user.role === "instructor" ? "I" : "S"}
             </span>
           </div>
         </header>
-        <main>
+        <main id="main-content" tabIndex={-1}>
           {config.demo_mode && (
             <Banner>
               Temporary demo: export lessons before the service sleeps or
@@ -2509,6 +2639,7 @@ export default function App() {
           )}
           {path.startsWith("/coach") ? (
             <LiveCoach
+              consent={entryConsent}
               key={path}
               config={config}
               lessonId={path.split("/")[2]}
@@ -2547,10 +2678,6 @@ export default function App() {
             <Library user={user} navigate={navigate} />
           )}
         </main>
-        <footer className="app-footer">
-          <span>ShowOnce · One demonstration, a reusable lesson.</span>
-          <span>Observe. Review. Learn.</span>
-        </footer>
       </div>
     </div>
   );

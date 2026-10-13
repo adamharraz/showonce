@@ -43,6 +43,9 @@ export type Lesson = Omit<components["schemas"]["LessonRecord"], "draft"> & {
   draft: Draft;
 };
 export interface LessonCard {
+  evidence_ids: string[];
+  source: Source | null;
+  unresolved_count: number;
   id: string;
   title: string;
   summary: string;

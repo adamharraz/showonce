@@ -25,6 +25,8 @@ def main():
         for path in ('/coach','/settings'):
             page=client.get(path);page.raise_for_status()
             assert 'text/html' in page.headers.get('content-type','')
+        icon=client.get('/favicon.svg');icon.raise_for_status()
+        assert 'image/svg+xml' in icon.headers.get('content-type','')
         for path in ('/api/lessons','/api/components/catalogue','/api/twins'):
             assert client.get(path).status_code==401
         assert client.post('/api/auth/local',json={'role':'instructor'}).status_code==403

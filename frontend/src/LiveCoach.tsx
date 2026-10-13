@@ -34,17 +34,18 @@ const duration = (seconds: number) =>
     .padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
 
 export default function LiveCoach({
+  consent,
   config,
   lessonId,
   versionNumber,
 }: {
+  consent: boolean;
   config: Config;
   lessonId?: string;
   versionNumber?: number;
 }) {
   const [state, setState] = useState<State>("idle");
   const [source, setSource] = useState<"camera" | "screen">("camera");
-  const [consent, setConsent] = useState(false);
   const [mic, setMic] = useState(true);
   const [muted, setMuted] = useState(false);
   const [speaking, setSpeaking] = useState(false);
@@ -390,11 +391,8 @@ export default function LiveCoach({
     <>
       <div className="page-heading">
         <div>
-          <span className="eyebrow">YOUR LIVE LAB PARTNER</span>
-          <h1>Learn with someone beside you.</h1>
-          <p>Show your workspace. Ask naturally. Get guidance as you work.</p>
+          <h1>Live Coach</h1>
         </div>
-        <span className="badge green">Free-tier mode</span>
       </div>
       {error && (
         <div className="banner error" role="alert">
@@ -403,7 +401,10 @@ export default function LiveCoach({
       )}
       <div className="coach-layout">
         <section className="coach-workspace">
-          <div className="coach-camera panel">
+          <div
+            className="coach-camera panel"
+            hidden={!running && !media.stream}
+          >
             <div className="coach-camera-heading">
               <span>
                 <Camera size={17} />{" "}
@@ -457,7 +458,7 @@ export default function LiveCoach({
           </div>
           {!running ? (
             <section className="panel coach-setup">
-              <h3>Set up your workspace</h3>
+              <h2>Start a session</h2>
               <div className="coach-source-buttons">
                 <button
                   className={
@@ -491,16 +492,7 @@ export default function LiveCoach({
                   checked={mic}
                   onChange={(e) => setMic(e.target.checked)}
                 />{" "}
-                Use microphone for spoken conversation
-              </label>
-              <label className="check-label">
-                <input
-                  type="checkbox"
-                  checked={consent}
-                  onChange={(e) => setConsent(e.target.checked)}
-                />{" "}
-                Everyone captured is 18+ and consents to Google processing this
-                feed.
+                Use microphone (you can also type)
               </label>
               <button
                 className="button primary"
@@ -518,6 +510,15 @@ export default function LiveCoach({
                   ? "Start live coaching"
                   : "Start a new session"}
               </button>
+              <p className="fine" role="status">
+                {!config.coach_enabled ||
+                !config.ai_configured ||
+                !config.free_tier_confirmed
+                  ? "Live coaching is unavailable. Check Settings."
+                  : lessonId && !lesson
+                    ? "Loading your lesson…"
+                    : "Ready to start."}
+              </p>
               <p className="fine">
                 Camera and audio are streamed, not recorded. The conversation is
                 saved privately for seven days. You can type with the microphone
@@ -603,25 +604,28 @@ export default function LiveCoach({
               </p>
             </section>
           )}
-          <ComponentPanel
-            scene={componentScene}
-            sessionId={sessionId}
-            ready={ready && frames > 0}
-            inspecting={inspecting}
-            notice={componentNotice}
-            inspect={() => {
-              setInspecting(true);
-              speaker.current?.interrupt();
-              media.snapshot();
-              send({ type: "inspect_components" });
-            }}
-            onChange={(scene) => {
-              setComponentScene(scene);
-              setComponentNotice(
-                "Your confirmation is saved. The assistant will receive it with your next question.",
-              );
-            }}
-          />
+          <details className="panel coach-references">
+            <summary>3D component references</summary>
+            <ComponentPanel
+              scene={componentScene}
+              sessionId={sessionId}
+              ready={ready && frames > 0}
+              inspecting={inspecting}
+              notice={componentNotice}
+              inspect={() => {
+                setInspecting(true);
+                speaker.current?.interrupt();
+                media.snapshot();
+                send({ type: "inspect_components" });
+              }}
+              onChange={(scene) => {
+                setComponentScene(scene);
+                setComponentNotice(
+                  "Your confirmation is saved. The assistant will receive it with your next question.",
+                );
+              }}
+            />
+          </details>
           {!running && (
             <details
               className="panel coach-history"
@@ -674,7 +678,7 @@ export default function LiveCoach({
               <Sparkles size={22} />
             </span>
             <div>
-              <h3>ShowOnce assistant</h3>
+              <h3>Conversation</h3>
               <span>
                 {speaking
                   ? "Speaking…"
@@ -691,19 +695,7 @@ export default function LiveCoach({
           <div className="coach-messages" aria-live="polite">
             {!messages.length && (
               <div className="coach-chat-empty">
-                <span className="coach-orbit">
-                  <Sparkles size={26} />
-                </span>
-                <h3>
-                  A little guidance,
-                  <br />
-                  right when you need it.
-                </h3>
-                <p>
-                  Ask what’s visible, how to approach a step, or whether
-                  something looks different.
-                </p>
-                <span>Replies come from your live session.</span>
+                <p>Start a session, then speak or type your question here.</p>
               </div>
             )}
             {messages.map((m, i) => (

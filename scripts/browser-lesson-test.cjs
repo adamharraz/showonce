@@ -23,21 +23,56 @@ let browser;
   });
   const page = await context.newPage();
   const errors = [];
+  const layoutChecks = [];
+  async function inspectLayout(name) {
+    for (const width of [1440, 768, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.waitForTimeout(250);
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth > innerWidth,
+      );
+      layoutChecks.push({ name, width, overflow });
+      if (overflow) throw new Error(name + " overflows at " + width);
+      await page.screenshot({
+        path: "artifacts/ui/redesign-" + name + "-" + width + ".png",
+        fullPage: true,
+      });
+    }
+    await page.setViewportSize({ width: 1440, height: 1000 });
+  }
   page.on("pageerror", (e) => errors.push(e.message));
   const response = await page.goto("http://127.0.0.1:8001");
   if (response.headers()["x-showonce-test-fixture"] !== "true")
     throw new Error("Refusing to test against an unmarked model server");
+  await inspectLayout("login");
+  await page.getByRole("checkbox", { name: /I am 18/ }).check();
+  await page.getByRole("button", { name: "Continue to ShowOnce", exact: true }).click();
   await page.getByRole("button", { name: /instructor/i }).click();
+  await inspectLayout("library-empty");
   await page
-    .getByRole("button", { name: "Demonstration studio", exact: true })
+    .getByRole("button", { name: "Create a lesson", exact: true })
     .click();
-  await page.getByRole("checkbox", { name: /18\+/ }).check();
+  await inspectLayout("capture-setup");
   await page
     .getByRole("button", { name: "Start demonstration", exact: true })
     .click();
+  await page.getByRole("button", { name: "Confirm and start", exact: true }).click();
   await page.waitForTimeout(2500);
   await page.getByRole("button", { name: /Finish & review/i }).click();
-  await page.getByRole("heading", { name: "Make the lesson yours." }).waitFor();
+  await page.getByRole("heading", { name: "Review lesson" }).waitFor();
+  await inspectLayout("review");
+  const reviewPath = new URL(page.url()).pathname;
+  await page
+    .getByRole("button", { name: "Lesson library", exact: true })
+    .click();
+  await page.getByRole("heading", { name: "In review", exact: true }).waitFor();
+  await inspectLayout("review-queue");
+  await page.locator(".review-queue-entry").first().click();
+  await page
+    .getByRole("heading", { name: "Review lesson", exact: true })
+    .waitFor();
+  if (new URL(page.url()).pathname !== reviewPath)
+    throw new Error("Review queue opened the wrong lesson");
   if (
     await page
       .getByRole("button", { name: "Publish lesson", exact: true })
@@ -60,6 +95,7 @@ let browser;
   await page
     .getByRole("heading", { name: "Test-generated lesson", exact: true })
     .waitFor();
+  await inspectLayout("lesson");
   const downloadPromise = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "Export lesson", exact: true })
@@ -69,11 +105,12 @@ let browser;
   await page
     .getByRole("button", { name: "Start guided practice", exact: true })
     .click();
-  await page.getByRole("checkbox", { name: /18\+/ }).check();
   await page
     .getByRole("button", { name: "Start practice", exact: true })
     .click();
+  await page.getByRole("button", { name: "Confirm and start", exact: true }).click();
   await page.waitForTimeout(2500);
+  await inspectLayout("practice");
   await page
     .getByRole("button", { name: "Finish practice", exact: true })
     .click();
@@ -82,11 +119,25 @@ let browser;
     path: "artifacts/ui/practice-test-fixture.png",
     fullPage: true,
   });
+  await page
+    .getByRole("button", { name: "Lesson library", exact: true })
+    .click();
+  await page.locator(".lesson-card").first().waitFor();
+  await inspectLayout("library");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page
+    .getByRole("button", { name: "Open navigation", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Settings", exact: true })
+    .click();
+  await inspectLayout("settings");
   fs.writeFileSync(
     "artifacts/ui/lesson-flow-test.json",
     JSON.stringify(
       {
         pageErrors: errors,
+        layoutChecks,
         note: "Test-only model fixture and synthetic camera. Verifies UI integration, not model accuracy or latency.",
       },
       null,
