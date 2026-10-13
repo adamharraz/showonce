@@ -631,6 +631,7 @@ export interface components {
             /**
              * Access Code
              * Format: password
+             * @default
              */
             access_code: string;
         };

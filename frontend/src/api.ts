@@ -15,6 +15,7 @@ export type Source = "camera" | "screen" | "phone";
 export interface Config {
   local_login: boolean;
   demo_mode: boolean;
+  demo_require_access_code: boolean;
   ai_configured: boolean;
   free_tier_confirmed: boolean;
   storage_mode: string;

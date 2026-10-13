@@ -298,17 +298,19 @@ function Login({
                     before the service sleeps or restarts.
                   </p>
                 </div>
-                <label>
-                  Demo access code
-                  <input
-                    type="password"
-                    name="demo-access-code"
-                    autoComplete="current-password"
-                    required
-                    value={accessCode}
-                    onChange={(e) => setAccessCode(e.target.value)}
-                  />
-                </label>
+                {config.demo_require_access_code && (
+                  <label>
+                    Demo access code
+                    <input
+                      type="password"
+                      name="demo-access-code"
+                      autoComplete="current-password"
+                      required
+                      value={accessCode}
+                      onChange={(e) => setAccessCode(e.target.value)}
+                    />
+                  </label>
+                )}
                 <label>
                   Demo role
                   <select

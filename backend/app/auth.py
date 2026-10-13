@@ -66,7 +66,7 @@ class Auth:
         if len(self.demo_attempts) >= 20:
             raise HTTPException(429, 'Too many sign-in attempts. Try again in one minute.')
         self.demo_attempts.append(current)
-        if not hmac.compare_digest(code.encode(), self.settings.demo_access_code.encode()):
+        if self.settings.demo_require_access_code and not hmac.compare_digest(code.encode(), self.settings.demo_access_code.encode()):
             raise HTTPException(401, 'The demo access code is incorrect')
         return {'token': self.token(role), 'user': {'id': f'demo-{role}', 'role': role}}
 

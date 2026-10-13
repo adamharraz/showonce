@@ -33,6 +33,7 @@ class Settings:
     daily_limit: int = field(default_factory=lambda: int(os.getenv('DAILY_ANALYSIS_LIMIT', '120')))
     allow_local_login: bool = field(default_factory=lambda: os.getenv('ALLOW_LOCAL_LOGIN', 'true').lower() == 'true')
     demo_mode: bool = field(default_factory=lambda: os.getenv('DEMO_MODE', 'false').lower() == 'true')
+    demo_require_access_code: bool = field(default_factory=lambda: os.getenv('DEMO_REQUIRE_ACCESS_CODE', 'false').lower() == 'true')
     demo_access_code: str = field(default_factory=lambda: os.getenv('DEMO_ACCESS_CODE', ''), repr=False)
 
     def validate(self):
@@ -40,7 +41,7 @@ class Settings:
             raise RuntimeError('STORAGE_MODE must be local or supabase')
         if self.storage_mode == 'supabase' and not all((self.supabase_url, self.supabase_service, self.supabase_anon)):
             raise RuntimeError('Supabase configuration is incomplete')
-        if self.demo_mode and (self.storage_mode != 'local' or self.allow_local_login or len(self.demo_access_code) < 32):
+        if self.demo_mode and (self.storage_mode != 'local' or self.allow_local_login or (self.demo_require_access_code and len(self.demo_access_code) < 32)):
             raise RuntimeError('Demo mode requires local storage, ALLOW_LOCAL_LOGIN=false and a private DEMO_ACCESS_CODE of at least 32 characters')
         if os.getenv('RENDER') or self.origin.startswith('https://'):
             if self.allow_local_login or (self.storage_mode != 'supabase' and not self.demo_mode):

@@ -10,6 +10,16 @@ from tests.test_app import FakeAI
 
 CODE = 'test-only-private-demo-code-1234567890'
 
+def test_public_demo_needs_no_access_code(tmp_path):
+    with TestClient(create_app(settings(tmp_path, demo_require_access_code=False, demo_access_code=''), FakeAI())) as client:
+        assert client.get('/api/config').json()['demo_require_access_code'] is False
+        assert client.get('/api/lessons').status_code == 401
+        for role in ('instructor', 'student'):
+            response = client.post('/api/auth/demo', json={'role': role})
+            assert response.status_code == 200
+            assert response.json()['user']['role'] == role
+        assert client.post('/api/auth/demo', json={'role': 'admin'}).status_code == 422
+
 def test_render_origin_is_derived_without_guessing_the_service_hostname(monkeypatch):
     monkeypatch.delenv('APP_ORIGIN', raising=False)
     monkeypatch.setenv('RENDER_EXTERNAL_URL', 'https://assigned-name.onrender.com')
@@ -19,7 +29,7 @@ def test_render_origin_is_derived_without_guessing_the_service_hostname(monkeypa
 
 def settings(tmp_path, **overrides):
     values = dict(data_dir=tmp_path, storage_mode='local', allow_local_login=False,
-                  demo_mode=True, demo_access_code=CODE, origin='https://demo.example.com',
+                  demo_mode=True, demo_require_access_code=True, demo_access_code=CODE, origin='https://demo.example.com',
                   gemini_key='', interval=3600)
     values.update(overrides)
     return Settings(**values)
