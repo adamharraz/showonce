@@ -57,7 +57,7 @@ class Auth:
             raise HTTPException(403, 'This account has not been provisioned for ShowOnce')
         return User(data['id'], profile['role'])
 
-    def demo_login(self, code, role):
+    def demo_login(self, role):
         if not self.settings.demo_mode:
             raise HTTPException(403, 'Demo sign-in is disabled')
         current = time.monotonic()
@@ -66,8 +66,6 @@ class Auth:
         if len(self.demo_attempts) >= 20:
             raise HTTPException(429, 'Too many sign-in attempts. Try again in one minute.')
         self.demo_attempts.append(current)
-        if not hmac.compare_digest(code.encode(), self.settings.demo_access_code.encode()):
-            raise HTTPException(401, 'The demo access code is incorrect')
         return {'token': self.token(role), 'user': {'id': f'demo-{role}', 'role': role}}
 
     def ticket(self, session_id, user_id):

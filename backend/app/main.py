@@ -91,7 +91,7 @@ def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_pro
 
     @app.post('/api/auth/demo')
     async def demo_login(body: DemoLogin):
-        return auth.demo_login(body.access_code.get_secret_value(), body.role)
+        return auth.demo_login(body.role)
 
     @app.get('/api/me')
     async def me(current=Depends(user)):

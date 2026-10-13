@@ -31,7 +31,12 @@ def main():
             assert client.get(path).status_code==401
         assert client.post('/api/auth/local',json={'role':'instructor'}).status_code==403
         if data['demo_mode']:
-            assert client.post('/api/auth/demo',json={'role':'instructor','access_code':'invalid-test-code'}).status_code==401
+            for role in ('instructor', 'student'):
+                entry=client.post('/api/auth/demo',json={'role':role});entry.raise_for_status()
+                headers={'Authorization':'Bearer '+entry.json()['token']}
+                identity=client.get('/api/me',headers=headers);identity.raise_for_status()
+                assert identity.json()['role']==role
+            assert client.post('/api/auth/demo',json={'role':'admin'}).status_code==422
     print('Hosted HTTPS, frontend, model policy and authentication guards passed. No AI request was made.')
 
 if __name__=='__main__':main()

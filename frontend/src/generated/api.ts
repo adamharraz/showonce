@@ -628,11 +628,6 @@ export interface components {
              * @enum {string}
              */
             role: "instructor" | "student";
-            /**
-             * Access Code
-             * Format: password
-             */
-            access_code: string;
         };
         /** DraftEdit */
         DraftEdit: {

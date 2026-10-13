@@ -196,14 +196,12 @@ function Login({
   const [busy, setBusy] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [accessCode, setAccessCode] = useState("");
-  const [demoRole, setDemoRole] = useState<User["role"]>("instructor");
   async function local(role: string) {
     setBusy(true);
     setError("");
     try {
       const result = await api<{ token: string; user: User }>(
-        "/auth/local",
+        config.demo_mode ? "/auth/demo" : "/auth/local",
         "POST",
         { role },
       );
@@ -219,20 +217,6 @@ function Login({
     setBusy(true);
     setError("");
     try {
-      if (config.demo_mode) {
-        const result = await api<{ token: string; user: User }>(
-          "/auth/demo",
-          "POST",
-          {
-            role: demoRole,
-            access_code: accessCode,
-          },
-        );
-        setToken(result.token);
-        setAccessCode("");
-        onLogin(result.user);
-        return;
-      }
       const client = await hostedAuth(config);
       const { data, error } = await client.auth.signInWithPassword({
         email,
@@ -257,15 +241,21 @@ function Login({
       <div className="login-panel">
         <Logo />
 
-        <h1>Sign in</h1>
+        <h1>{config.demo_mode ? "Choose your role" : "Sign in"}</h1>
         <p className="muted">
           Create and practice lessons for physical or screen-based tasks.
         </p>
-        {config.local_login ? (
+        {config.local_login || config.demo_mode ? (
           <>
             <div className="local-note">
-              <strong>Local development</strong>
-              <p>Choose a role for this local session.</p>
+              <strong>
+                {config.demo_mode ? "Competition demo" : "Local development"}
+              </strong>
+              <p>
+                {config.demo_mode
+                  ? "Anyone with this link can use the shared demo workspaces. Lessons and screenshots are temporary; export your lesson before the service sleeps or restarts."
+                  : "Choose a role for this local session."}
+              </p>
             </div>
             <button
               disabled={busy}
@@ -289,72 +279,34 @@ function Login({
               void signIn();
             }}
           >
-            {config.demo_mode ? (
-              <>
-                <div className="local-note">
-                  <strong>Competition demo</strong>
-                  <p>
-                    Lessons and screenshots are temporary. Export your lesson
-                    before the service sleeps or restarts.
-                  </p>
-                </div>
-                <label>
-                  Demo access code
-                  <input
-                    type="password"
-                    name="demo-access-code"
-                    autoComplete="current-password"
-                    required
-                    value={accessCode}
-                    onChange={(e) => setAccessCode(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Demo role
-                  <select
-                    value={demoRole}
-                    onChange={(e) =>
-                      setDemoRole(e.target.value as User["role"])
-                    }
-                  >
-                    <option value="instructor">Instructor</option>
-                    <option value="student">Student</option>
-                  </select>
-                </label>
-              </>
-            ) : (
-              <>
-                <label>
-                  Email
-                  <input
-                    type="email"
-                    name="email"
-                    autoComplete="username"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Password
-                  <input
-                    type="password"
-                    name="password"
-                    autoComplete="current-password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                </label>
-              </>
-            )}
+            <label>
+              Email
+              <input
+                type="email"
+                name="email"
+                autoComplete="username"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </label>
+            <label>
+              Password
+              <input
+                type="password"
+                name="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </label>
             <button disabled={busy} className="button primary full">
               {busy ? "Signing in…" : "Sign in"}
             </button>
             <p className="fine">
-              {config.demo_mode
-                ? "Use the team's private code. Each role shares one demo workspace."
-                : "Accounts are provided by your instructor. Public registration is disabled."}
+              Accounts are provided by your instructor. Public registration is
+              disabled.
             </p>
           </form>
         )}
@@ -2450,7 +2402,9 @@ export default function App() {
       : path.startsWith("/capture/")
         ? "Phone camera"
         : !user
-          ? "Sign in"
+          ? config?.demo_mode
+            ? "Choose your role"
+            : "Sign in"
           : path.startsWith("/review/")
             ? "Lesson review"
             : path.startsWith("/practice/")
@@ -2467,7 +2421,7 @@ export default function App() {
       .querySelector<HTMLElement>("#main-content")
       ?.focus({ preventScroll: true });
     window.scrollTo(0, 0);
-  }, [path, user?.id]);
+  }, [path, user?.id, config?.demo_mode]);
   useEffect(() => {
     const close = (event: KeyboardEvent) => {
       if (event.key === "Escape") setMobileMenu(false);

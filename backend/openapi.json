@@ -1444,21 +1444,12 @@
               "student"
             ],
             "title": "Role"
-          },
-          "access_code": {
-            "type": "string",
-            "maxLength": 256,
-            "minLength": 1,
-            "format": "password",
-            "title": "Access Code",
-            "writeOnly": true
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "role",
-          "access_code"
+          "role"
         ],
         "title": "DemoLogin"
       },

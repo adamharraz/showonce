@@ -9,8 +9,6 @@ services:
         value: local
       - key: DEMO_MODE
         value: "true"
-      - key: DEMO_ACCESS_CODE
-        sync: false
       - key: ALLOW_LOCAL_LOGIN
         value: "false"
       - key: TWIN_ENABLED

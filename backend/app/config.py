@@ -33,18 +33,17 @@ class Settings:
     daily_limit: int = field(default_factory=lambda: int(os.getenv('DAILY_ANALYSIS_LIMIT', '120')))
     allow_local_login: bool = field(default_factory=lambda: os.getenv('ALLOW_LOCAL_LOGIN', 'true').lower() == 'true')
     demo_mode: bool = field(default_factory=lambda: os.getenv('DEMO_MODE', 'false').lower() == 'true')
-    demo_access_code: str = field(default_factory=lambda: os.getenv('DEMO_ACCESS_CODE', ''), repr=False)
 
     def validate(self):
         if self.storage_mode not in ('local', 'supabase'):
             raise RuntimeError('STORAGE_MODE must be local or supabase')
         if self.storage_mode == 'supabase' and not all((self.supabase_url, self.supabase_service, self.supabase_anon)):
             raise RuntimeError('Supabase configuration is incomplete')
-        if self.demo_mode and (self.storage_mode != 'local' or self.allow_local_login or len(self.demo_access_code) < 32):
-            raise RuntimeError('Demo mode requires local storage, ALLOW_LOCAL_LOGIN=false and a private DEMO_ACCESS_CODE of at least 32 characters')
+        if self.demo_mode and (self.storage_mode != 'local' or self.allow_local_login):
+            raise RuntimeError('Demo mode requires local storage and ALLOW_LOCAL_LOGIN=false')
         if os.getenv('RENDER') or self.origin.startswith('https://'):
             if self.allow_local_login or (self.storage_mode != 'supabase' and not self.demo_mode):
-                raise RuntimeError('Hosted deployments require Supabase or protected demo mode, with ALLOW_LOCAL_LOGIN=false')
+                raise RuntimeError('Hosted deployments require Supabase or explicit demo mode, with ALLOW_LOCAL_LOGIN=false')
         if self.gemini_key and not self.free_tier_confirmed:
             # A key alone must never enable potentially paid requests.
             pass
