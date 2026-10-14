@@ -45,12 +45,14 @@ let browser;
   if (response.headers()["x-showonce-test-fixture"] !== "true")
     throw new Error("Refusing to test against an unmarked model server");
   await inspectLayout("login");
+  await page.getByRole("link", { name: "Open ShowOnce", exact: true }).first().click();
   await page.getByRole("checkbox", { name: /I am 18/ }).check();
   await page.getByRole("button", { name: "Continue to ShowOnce", exact: true }).click();
-  await page.getByRole("button", { name: /instructor/i }).click();
+  await page.getByRole("button", { name: "Teach a task", exact: true }).click();
+  await page.getByRole("button", { name: "Lessons", exact: true }).click();
   await inspectLayout("library-empty");
   await page
-    .getByRole("button", { name: "Create a lesson", exact: true })
+    .getByRole("button", { name: "Teach a task", exact: true }).first()
     .click();
   await inspectLayout("capture-setup");
   await page
@@ -63,7 +65,7 @@ let browser;
   await inspectLayout("review");
   const reviewPath = new URL(page.url()).pathname;
   await page
-    .getByRole("button", { name: "Lesson library", exact: true })
+    .getByRole("button", { name: "Lessons", exact: true })
     .click();
   await page.getByRole("heading", { name: "In review", exact: true }).waitFor();
   await inspectLayout("review-queue");
@@ -120,7 +122,7 @@ let browser;
     fullPage: true,
   });
   await page
-    .getByRole("button", { name: "Lesson library", exact: true })
+    .getByRole("button", { name: "Lessons", exact: true })
     .click();
   await page.locator(".lesson-card").first().waitFor();
   await inspectLayout("library");
