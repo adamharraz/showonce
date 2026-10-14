@@ -9,8 +9,8 @@ export default function EntryConsent({
   return (
     <main className="entry-consent">
       <section className="panel" aria-labelledby="entry-title">
-        <h1 id="entry-title">Welcome to ShowOnce</h1>
-        <p>Before you enter, confirm:</p>
+        <a href="/welcome">← Back to ShowOnce</a>
+        <h1 id="entry-title">Before you begin</h1>
         <label className="check-label">
           <input
             type="checkbox"

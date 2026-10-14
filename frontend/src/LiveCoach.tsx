@@ -391,7 +391,7 @@ export default function LiveCoach({
     <>
       <div className="page-heading">
         <div>
-          <h1>Live Coach</h1>
+            <h1>Get live help</h1>
         </div>
       </div>
       {error && (

@@ -4,7 +4,22 @@
   display: grid;
   place-items: center;
   padding: 24px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 48px;
+  max-width: 1280px;
+  margin: auto;
 }
+.entry-intro { max-width: 640px; }
+.entry-brand { color: #1464d2; font-size: 32px; font-weight: 900; }
+.entry-intro h1 { font-size: clamp(30px, 3.5vw, 48px); line-height: 1.15; margin: 24px 0; }
+.entry-intro > p { line-height: 1.6; }
+.learning-flow { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 32px 0; }
+.learning-flow li { border-top: 4px solid #1473e6; padding-top: 12px; }
+.learning-flow li:nth-child(2) { border-color: #128773; }
+.learning-flow li:nth-child(3) { border-color: #df9b19; }
+.learning-flow strong, .learning-flow span { display: block; }
+.learning-flow span { margin-top: 6px; font-size: 14px; }
+.task-examples { color: var(--quiet); font-size: 14px; }
 .entry-consent > .panel {
   width: 100%;
   max-width: 560px;
@@ -479,6 +494,8 @@ code {
   }
 }
 @media (max-width: 700px) {
+  .entry-consent { grid-template-columns: 1fr; gap: 24px; padding: 24px 18px; }
+  .entry-consent > .panel { max-width: none; padding: 24px; }
   .electronics-welcome {
     min-height: 310px;
     margin-bottom: 26px;
@@ -530,4 +547,26 @@ code {
   .coach-layout {
     gap: 16px;
   }
+}
+
+/* Keep the workbench illustration while putting the next action first. */
+.electronics-welcome.purpose-welcome {
+  min-height: 280px;
+  padding: 32px 32px 100px;
+  text-align: left;
+  background-size: cover;
+}
+.purpose-welcome h2 { font-size: clamp(26px, 3vw, 38px); margin: 0 0 10px; }
+.purpose-welcome > p { max-width: 620px; color: #102b50; margin: 0 0 20px; }
+.purpose-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.purpose-actions .secondary { background: white; }
+@media (max-width: 700px) {
+  .electronics-welcome.purpose-welcome { padding: 24px 18px 110px; background-size: auto 100%; }
+  .purpose-actions { flex-direction: column; align-items: stretch; }
+  .purpose-actions .button { justify-content: center; }
+  .learning-flow { gap: 10px; }
+}
+@media (max-width: 450px) {
+  .learning-flow { grid-template-columns: 1fr; gap: 14px; }
+  .learning-flow li { border-top: 0; border-left: 4px solid #1473e6; padding: 0 0 0 14px; }
 }

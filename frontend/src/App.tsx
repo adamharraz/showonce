@@ -66,6 +66,7 @@ import { captureElapsedMs } from "./capture-clock";
 import { unresolved, reorder } from "./review";
 import LiveCoach from "./LiveCoach";
 import EntryConsent from "./EntryConsent";
+import Homepage from "./Homepage";
 
 function usePath() {
   const [path, setPath] = useState(location.pathname);
@@ -242,7 +243,7 @@ function Login({
       <div className="login-panel">
         <Logo />
 
-        <h1>{config.demo_mode ? "Choose your role" : "Sign in"}</h1>
+        <h1>{config.local_login || config.demo_mode ? "What would you like to do?" : "Sign in"}</h1>
         <p className="muted">
           Create and practice lessons for physical or screen-based tasks.
         </p>
@@ -263,15 +264,17 @@ function Login({
               className="button primary full"
               onClick={() => local("instructor")}
             >
-              Enter as instructor
+              Teach a task <Video size={17} />
             </button>
+            <p className="fine">Instructor: record, review and publish a lesson.</p>
             <button
               disabled={busy}
               className="button secondary full"
               onClick={() => local("student")}
             >
-              Enter as student <GraduationCap size={17} />
+              Practise a task <GraduationCap size={17} />
             </button>
+            <p className="fine">Learner: follow a lesson or get live help.</p>
           </>
         ) : (
           <form
@@ -393,21 +396,16 @@ function Library({
   return (
     <>
       <section
-        className="electronics-welcome"
+        className="electronics-welcome purpose-welcome"
         aria-label="ShowOnce learning workspace"
       >
-        <p className="welcome-wordmark">ShowOnce</p>
-        <p className="welcome-tagline">Learn by doing.</p>
-        <button
-          className="button welcome-action"
-          onClick={() =>
-            navigate(user.role === "instructor" ? "/studio" : "/coach")
-          }
-        >
-          {user.role === "instructor"
-            ? "Record a demonstration"
-            : "Start live coaching"}
-        </button>
+        <h2>Show a task. Share a lesson.</h2>
+        <p>Turn a camera or screen demonstration into reviewed steps others can practise.</p>
+        <div className="purpose-actions">
+          {user.role === "instructor" && <button className="button primary" onClick={() => navigate("/studio")}><Video size={18} /> Teach a task</button>}
+          <a className="button secondary" href="#library-title" onClick={() => document.getElementById("library-title")?.focus()}><BookOpen size={18} /> Practise a task</a>
+          <button className="button secondary" onClick={() => navigate("/coach")}><Mic size={18} /> Get live help</button>
+        </div>
       </section>
       {error && (
         <Banner tone="error">
@@ -470,7 +468,7 @@ function Library({
       >
         <section className="library-main" aria-labelledby="library-title">
           <div className="library-section-heading">
-            <h1 id="library-title">Lesson library</h1>
+            <h1 id="library-title" tabIndex={-1}>Lessons</h1>
             <label className="lesson-search">
               <span className="sr-only">Search lessons</span>
               <input
@@ -549,7 +547,7 @@ function Library({
             </div>
           ) : error ? null : !visibleLessons.length ? (
             <p className="fine" role="status">
-              {lessons.length ? "No matching lessons." : "No lessons yet."}
+              {lessons.length ? "No matching lessons. Try another search or filter." : user.role === "instructor" ? "No lessons yet. Choose Teach a task to record your first demonstration." : "No lessons yet. Ask your instructor to publish one, or choose Get live help to work on a task now."}
             </p>
           ) : (
             <div className="lesson-grid">
@@ -1069,7 +1067,7 @@ function Live({
     <>
       <div className="page-heading">
         <div>
-          <h1>{practice ? practice.draft.title : "New demonstration"}</h1>
+          <h1>{practice ? practice.draft.title : "Teach a task"}</h1>
           {practice && (
             <p>Follow each step and compare your work with the reference.</p>
           )}
@@ -2415,6 +2413,7 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState("");
   const [mobileMenu, setMobileMenu] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
   const menuTrigger = useRef<HTMLButtonElement>(null);
   const menuWasOpen = useRef(false);
   useEffect(() => {
@@ -2426,8 +2425,10 @@ export default function App() {
     menuWasOpen.current = mobileMenu;
   }, [mobileMenu]);
   useEffect(() => {
-    const title = path.startsWith("/coach")
-      ? "Live Coach"
+    const title = path === "/welcome" || (path === "/" && !user)
+      ? "Learn by doing"
+      : path.startsWith("/coach")
+      ? "Get live help"
       : path.startsWith("/capture/")
         ? "Phone camera"
         : !user
@@ -2441,10 +2442,10 @@ export default function App() {
               : path.startsWith("/lesson/")
                 ? "Published lesson"
                 : path.startsWith("/studio")
-                  ? "Create a lesson"
+                  ? "Teach a task"
                   : path === "/settings"
                     ? "Connection and validation"
-                    : "Your lessons";
+                    : "Lessons";
     document.title = `${title} | ShowOnce`;
     document
       .querySelector<HTMLElement>("#main-content")
@@ -2464,21 +2465,31 @@ export default function App() {
         setConfig(c);
         await restoreHostedAuth(c);
         if (getToken())
-          void api<User>("/me")
+          await api<User>("/me")
             .then(setUser)
             .catch(() => setToken(""));
       })
-      .catch((e) => setError(e.message));
+      .catch((e) => setError(e.message))
+      .finally(() => setAuthReady(true));
   }, []);
+  useEffect(() => {
+    if (path === "/enter" && user && entryConsent) {
+      history.replaceState({}, "", "/");
+      dispatchEvent(new PopStateEvent("popstate"));
+    }
+  }, [path, user, entryConsent, navigateRaw]);
+  if (path === "/welcome" || (path === "/" && !user)) return <Homepage />;
   if (!config)
     return (
       <div className="loading full-page">
         <Logo />
-        {error || "Connecting to ShowOnce…"}
+        <p role={error ? "alert" : "status"}>{error || "Connecting to ShowOnce…"}</p>
+        {error && <><button className="button primary" onClick={() => location.reload()}>Try again</button><a href="/welcome">Back to homepage</a></>}
       </div>
     );
   if (path.startsWith("/capture/"))
     return <PhoneCapture id={path.split("/")[2]} />;
+  if (!authReady) return <div className="loading full-page" role="status">Restoring your session…</div>;
   if (!entryConsent)
     return (
       <EntryConsent
@@ -2488,7 +2499,10 @@ export default function App() {
         }}
       />
     );
-  if (!user) return <Login config={config} onLogin={setUser} />;
+  if (!user) return <Login config={config} onLogin={(signedInUser) => {
+    setUser(signedInUser);
+    if (path === "/enter") navigate(signedInUser.role === "instructor" ? "/studio" : "/");
+  }} />;
   const section = path.startsWith("/studio")
     ? "studio"
     : path.startsWith("/coach")
@@ -2506,22 +2520,15 @@ export default function App() {
         Skip to content
       </a>
       <aside className={"sidebar " + (mobileMenu ? "open" : "")}>
-        <Logo />
+        <a href="/welcome" aria-label="ShowOnce home"><Logo /></a>
         <span className="workspace-label">Workspace</span>
         <nav aria-label="Main navigation" id="main-navigation">
-          <button
-            aria-current={section === "coach" ? "page" : undefined}
-            className={section === "coach" ? "active" : ""}
-            onClick={() => go("/coach")}
-          >
-            <Mic size={18} /> Live Coach
-          </button>
           <button
             aria-current={section === "library" ? "page" : undefined}
             className={section === "library" ? "active" : ""}
             onClick={() => go("/")}
           >
-            <BookOpen size={18} /> Lesson library
+            <BookOpen size={18} /> Lessons
           </button>
           {user.role === "instructor" && (
             <button
@@ -2529,9 +2536,16 @@ export default function App() {
               className={section === "studio" ? "active" : ""}
               onClick={() => go("/studio")}
             >
-              <Video size={18} /> Create a lesson
+              <Video size={18} /> Teach a task
             </button>
           )}
+          <button
+            aria-current={section === "coach" ? "page" : undefined}
+            className={section === "coach" ? "active" : ""}
+            onClick={() => go("/coach")}
+          >
+            <Mic size={18} /> Get live help
+          </button>
           <button
             aria-current={section === "settings" ? "page" : undefined}
             className={section === "settings" ? "active" : ""}
@@ -2579,7 +2593,7 @@ export default function App() {
       <div className="workspace">
         <header className="topbar">
           <span className="mobile-brand">
-            <Logo />
+            <a href="/welcome" aria-label="ShowOnce home"><Logo /></a>
           </span>
           <button
             className="icon-button mobile-menu"
