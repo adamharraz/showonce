@@ -1,7 +1,11 @@
 """Read-only public deployment checks; does not run AI or print credentials."""
 import argparse
+from pathlib import Path
+import sys
 from urllib.parse import urlparse
 import httpx
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend'))
+from app.config import MODEL, LIVE_MODEL
 
 def main():
     parser=argparse.ArgumentParser()
@@ -18,8 +22,8 @@ def main():
         assert not data['local_login']
         assert data['storage_mode']=='supabase' or (data['storage_mode']=='local' and data['demo_mode'])
         assert data['app_origin']==origin
-        assert data['coach_model']=='gemini-3.8-live'
-        assert data['general_model']=='gemini-3.5-flash-lite'
+        assert data['coach_model']==LIVE_MODEL
+        assert data['general_model']==MODEL
         assert not data['twin_enabled']
         assert not any('service_role' in name.lower() or name in ('gemini_key','gemini_api_key','demo_access_code') for name in data)
         for path in ('/coach','/settings'):

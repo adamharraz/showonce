@@ -62,6 +62,7 @@ import {
   type Source,
 } from "./api";
 import { acquire, useCapture } from "./capture";
+import { captureElapsedMs } from "./capture-clock";
 import { unresolved, reorder } from "./review";
 import LiveCoach from "./LiveCoach";
 import EntryConsent from "./EntryConsent";
@@ -749,20 +750,20 @@ function Live({
     reject: () => void;
   } | null>(null);
   const limitStopped = useRef(false);
+  const captureEndedAt = useRef<number | null>(null);
+  const requestFinishRef = useRef<() => Promise<void>>(async () => {});
   const send = useCallback((data: unknown) => {
     if (socket.current?.readyState === WebSocket.OPEN)
       socket.current.send(JSON.stringify(data));
   }, []);
   const getElapsed = () =>
-    Math.max(
-      0,
-      Date.now() -
-        Date.parse(sessionRef.current?.created_at || new Date().toISOString()),
-    );
+    captureElapsedMs(sessionRef.current, captureEndedAt.current);
   const capture = useCapture(
     send,
     getElapsed,
-    connected && session?.state === "capturing",
+    connected &&
+      session?.state === "capturing" &&
+      captureEndedAt.current === null,
     () => {
       send({ type: "control", action: "pause" });
       setNotice("Capture ended. Resume with a new camera or screen selection.");
@@ -783,8 +784,14 @@ function Live({
         if (message.type === "status") {
           sessionRef.current = message.session;
           setSession(message.session);
-          if (message.session.state === "finished") {
+          if (
+            message.session.state === "finishing" ||
+            message.session.state === "finished"
+          ) {
+            setElapsed(Math.floor(getElapsed() / 1000));
             captureStopRef.current();
+          }
+          if (message.session.state === "finished") {
             finishWaiter.current?.resolve();
           }
         }
@@ -811,7 +818,7 @@ function Live({
         setConnected(false);
         if (
           !unmounted.current &&
-          sessionRef.current?.state !== "finished" &&
+          !sessionRef.current?.finished_at &&
           reconnect.current < 1
         ) {
           reconnect.current++;
@@ -821,10 +828,7 @@ function Live({
           setTimeout(() => {
             if (!unmounted.current) connectRef.current(s);
           }, 1500);
-        } else if (
-          !unmounted.current &&
-          sessionRef.current?.state !== "finished"
-        ) {
+        } else if (!unmounted.current && !sessionRef.current?.finished_at) {
           setNotice(
             "Connection interrupted. Saved work is preserved. Reconnect to continue.",
           );
@@ -844,15 +848,13 @@ function Live({
       if (sessionRef.current) setElapsed(Math.floor(getElapsed() / 1000));
       if (
         sessionRef.current &&
+        !sessionRef.current.finished_at &&
+        captureEndedAt.current === null &&
         !limitStopped.current &&
         getElapsed() >= (practice ? 600000 : 300000)
       ) {
         limitStopped.current = true;
-        captureStopRef.current();
-        send({ type: "control", action: "finish" });
-        setNotice(
-          "The session time limit was reached. Capture stopped; received evidence is being saved.",
-        );
+        void requestFinishRef.current();
       }
     }, 1000);
     return () => {
@@ -871,7 +873,9 @@ function Live({
       job: Job | null;
     }>("/sessions/" + id)
       .then((result) => {
+        sessionRef.current = result.session;
         setSession(result.session);
+        setElapsed(Math.floor(getElapsed() / 1000));
         setSource(result.session.source);
         setObservations(result.observations);
         setJob(result.job);
@@ -886,8 +890,11 @@ function Live({
   useEffect(() => {
     if (!session || practice) return;
     const timer = setInterval(() => {
-      void api<{ job: Job | null }>("/sessions/" + session.id)
+      void api<{ session: Session; job: Job | null }>("/sessions/" + session.id)
         .then((r) => {
+          sessionRef.current = r.session;
+          setSession(r.session);
+          setElapsed(Math.floor(getElapsed() / 1000));
           setJob(r.job);
           if (r.job?.state === "complete")
             navigate("/review/" + r.job.lesson_id);
@@ -936,6 +943,7 @@ function Live({
           ? { lesson_id: practice.lesson_id, version: practice.version }
           : {}),
       });
+      sessionRef.current = s;
       setSession(s);
       connectRef.current(s);
       if (media) capture.setStream(media);
@@ -963,19 +971,30 @@ function Live({
     }
   }
   async function finish() {
+    if (!session || busy) return;
+    if (!session.finished_at && captureEndedAt.current === null)
+      captureEndedAt.current = Date.now();
+    setElapsed(Math.floor(getElapsed() / 1000));
     setBusy(true);
-    const audioFlushed = await capture.flushAudio();
-    capture.stop();
+    setError("");
+    setNotice(
+      "Recording stopped. Processing the saved demonstration for review…",
+    );
+    const audioFlushed = await capture.stopAndFlush();
     if (session) {
       try {
-        if (connected && socket.current?.readyState === WebSocket.OPEN) {
+        if (
+          !session.finished_at &&
+          connected &&
+          socket.current?.readyState === WebSocket.OPEN
+        ) {
           // A control message follows the last frame on the same ordered socket.
           // Wait for the server's flush before issuing an HTTP finalization request.
           try {
             await new Promise<void>((resolve, reject) => {
               const timer = setTimeout(
                 () => reject(new Error("Flush acknowledgement timed out")),
-                60000,
+                120000,
               );
               finishWaiter.current = {
                 resolve: () => {
@@ -1021,6 +1040,7 @@ function Live({
     }
     setBusy(false);
   }
+  requestFinishRef.current = finish;
   async function pause() {
     const flushed = await capture.flushAudio();
     send({ type: "control", action: "pause", audio_gap: !flushed });
@@ -1192,13 +1212,13 @@ function Live({
                     <div className="stage-placeholder">
                       <Video size={38} />
                       <h3>
-                        {session.state === "finished"
+                        {session.finished_at || captureEndedAt.current !== null
                           ? "Demonstration captured"
                           : "Ready to see your work"}
                       </h3>
                       <p>
-                        {session.state === "finished"
-                          ? "Your observations are saved."
+                        {session.finished_at || captureEndedAt.current !== null
+                          ? "Recording has stopped. Saved evidence is available for lesson generation."
                           : "Resume to select your camera or screen."}
                       </p>
                     </div>
@@ -1227,11 +1247,12 @@ function Live({
                 {connected ? "Connected" : "Disconnected"}
               </span>
               <div>
-                {session.state !== "finished" && (
+                {!session.finished_at && session.state !== "finished" && (
                   <>
                     {session.state === "capturing" ? (
                       <button
                         className="button secondary"
+                        disabled={busy}
                         onClick={() => void pause()}
                       >
                         <Pause size={15} /> Pause
@@ -1240,7 +1261,7 @@ function Live({
                       <button
                         className="button secondary"
                         onClick={() => void resume()}
-                        disabled={session.state === "quota_paused"}
+                        disabled={busy || session.state === "quota_paused"}
                       >
                         <Play size={15} /> Resume
                       </button>
@@ -1261,6 +1282,7 @@ function Live({
                   job?.state !== "queued" && (
                     <button
                       className="button primary"
+                      disabled={busy}
                       onClick={() => void finish()}
                     >
                       <RefreshCw size={15} /> Retry finalization
@@ -1285,6 +1307,11 @@ function Live({
                 {job.state === "running" || job.state === "queued"
                   ? "Organizing the captured evidence into your review draft…"
                   : job.error || "Tutorial ready for review."}
+              </Banner>
+            )}
+            {session.state === "finishing" && !job && (
+              <Banner tone="info">
+                Recording stopped. Finishing analysis of the received evidence…
               </Banner>
             )}
           </section>
@@ -1372,6 +1399,7 @@ function Live({
                     className="button secondary"
                     disabled={
                       !session ||
+                      !!session.finished_at ||
                       session.state === "finished" ||
                       stepIndex === 0
                     }
@@ -1385,6 +1413,7 @@ function Live({
                     className="button primary"
                     disabled={
                       !session ||
+                      !!session.finished_at ||
                       session.state === "finished" ||
                       stepIndex === practice.draft.steps.length - 1
                     }
@@ -2169,7 +2198,7 @@ function Setup({ config }: { config: Config }) {
             </div>
           ))}
           <p className="fine">
-            Lesson generation and checkpoint checks use Gemini 3.5 Flash-Lite.
+            Lesson generation and checkpoint checks use Gemini 3.1 Flash-Lite.
             Live Coach uses {config.coach_model} for camera and spoken
             conversation. There is no paid or alternate-model fallback.
           </p>
@@ -2296,7 +2325,7 @@ function PhoneCapture({ id }: { id: string }) {
         }
         if (m.type === "pong" || m.type === "capture_state") {
           setState(m.state);
-          if (m.state === "finished") capture.stop();
+          if (m.state === "finishing" || m.state === "finished") capture.stop();
         }
         if (m.type === "error") setError(m.message);
       };

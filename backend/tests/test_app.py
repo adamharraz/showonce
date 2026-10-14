@@ -345,6 +345,124 @@ def test_elapsed_session_rejects_new_frames(client):
     assert runtime.stopped
     assert client.portal.call(client.app.state.store.get,'frame',s['id']+'-late') is None
 
+
+@pytest.mark.asyncio
+async def test_finish_stops_capture_and_freezes_time_before_inflight_analysis(tmp_path):
+    from app.storage import Store
+    from app.services import Service, Runtime, now
+    from app.models import FrameMessage
+    from datetime import datetime, timezone, timedelta
+    started = asyncio.Event(); release = asyncio.Event(); capture_ended = asyncio.Event()
+    class Delayed(FakeAI):
+        async def observe(self, *args):
+            started.set()
+            await release.wait()
+            return await super().observe(*args)
+    class Phone:
+        async def send_json(self, message):
+            if message.get('state') == 'finishing':
+                capture_ended.set()
+    settings = Settings(data_dir=tmp_path, interval=3600, gemini_key='', storage_mode='local')
+    store = Store(settings); service = Service(settings, store, Delayed())
+    session = {'id': 'delayed', 'owner_id': 'local-instructor', 'lesson_id': 'delayed-lesson', 'mode': 'teach', 'source': 'phone', 'state': 'capturing', 'created_at': (datetime.now(timezone.utc)-timedelta(seconds=60)).isoformat(), 'model': MODEL, 'gaps': [], 'last_error': None}
+    runtime = Runtime(session, service); service.runtimes[session['id']] = runtime
+    runtime.producer = Phone()
+    analysis = finish = None
+    try:
+        await runtime.frame(FrameMessage(type='frame', id='before', timestamp_ms=1000, data=frame_data()))
+        analysis = asyncio.create_task(runtime.analyze())
+        await asyncio.wait_for(started.wait(), 1)
+        finish = asyncio.create_task(runtime.finish())
+        await asyncio.wait_for(capture_ended.wait(), 1)
+        saved = await store.get('session', session['id'])
+        assert saved['state'] == 'finishing'
+        assert saved['finished_at']
+        duration = runtime.elapsed_ms
+        await asyncio.sleep(.02)
+        assert runtime.elapsed_ms == duration, 'AI latency must not extend the recording'
+        await runtime.frame(FrameMessage(type='frame', id='after', timestamp_ms=2000, data=frame_data()))
+        assert await store.get('frame', 'delayed-after') is None
+        assert not finish.done(), 'The final evidence is still being analyzed'
+        release.set(); await analysis; await finish
+        assert runtime.session['state'] == 'finished'
+        assert runtime.session['finished_at'] == saved['finished_at']
+        await runtime.finish()
+        assert runtime.session['finished_at'] == saved['finished_at']
+        await asyncio.gather(*list(service.jobs))
+        assert (await store.get('job', 'job-delayed'))['state'] == 'complete'
+    finally:
+        release.set()
+        await asyncio.gather(*(task for task in (analysis, finish) if task), return_exceptions=True)
+        await service.close(); await store.close()
+
+
+def test_finish_and_finalization_retry_preserve_recording_end(client):
+    headers, session, _ = complete_teaching(client)
+    saved = client.get('/api/sessions/'+session['id'], headers=headers).json()['session']['finished_at']
+    time.sleep(.01)
+    assert client.post('/api/sessions/'+session['id']+'/finish', headers=headers).json()['finished_at'] == saved
+    assert client.post('/api/sessions/'+session['id']+'/finalize', headers=headers).status_code == 202
+    assert client.get('/api/sessions/'+session['id'], headers=headers).json()['session']['finished_at'] == saved
+
+
+def test_busy_session_with_no_ledger_can_retry_saved_evidence(client):
+    from app.models import FrameMessage
+    headers, _ = login(client)
+    session = client.post('/api/sessions', headers=headers, json={'mode': 'teach', 'source': 'camera'}).json()
+    runtime = client.app.state.service.runtimes[session['id']]
+    async def busy(*args):
+        raise AIError('Synthetic provider overload. Try again shortly.', 'model_busy')
+    client.app.state.service.ai.observe = busy
+    client.portal.call(runtime.frame, FrameMessage(type='frame', id='saved', timestamp_ms=1000, data=frame_data()))
+    client.portal.call(runtime.finish)
+    ended = runtime.session['finished_at']
+    assert client.post('/api/sessions/'+session['id']+'/finalize', headers=headers).status_code == 202
+    failed = wait_job(client, headers, session['id'])
+    assert failed['job']['state'] == 'failed'
+    assert failed['observations'] == []
+    assert not client.portal.call(client.app.state.store.get, 'frame', session['id']+'-saved')['processed']
+    client.app.state.service.ai.observe = FakeAI().observe
+    assert client.post('/api/sessions/'+session['id']+'/finalize', headers=headers).status_code == 202
+    recovered = wait_job(client, headers, session['id'])
+    assert recovered['job']['state'] == 'complete'
+    assert recovered['job']['attempts'] == 2
+    assert recovered['observations'][0]['evidence_ids'] == [session['id']+'-saved']
+    assert recovered['session']['finished_at'] == ended
+    lesson = client.get('/api/lessons/'+session['lesson_id']+'/draft', headers=headers).json()
+    assert lesson['draft']['steps']
+    assert any(q['required'] and 'gaps' in q['text'] for q in lesson['draft']['questions'])
+
+
+def test_partial_recovery_retries_only_unprocessed_windows(client):
+    from app.models import FrameMessage
+    headers, _ = login(client)
+    session = client.post('/api/sessions', headers=headers, json={'mode': 'teach', 'source': 'camera'}).json()
+    runtime = client.app.state.service.runtimes[session['id']]
+    for index in range(12):
+        runtime.last_frame = 0
+        client.portal.call(runtime.frame, FrameMessage(type='frame', id=f'window-{index}', timestamp_ms=(index+1)*1000, data=frame_data()))
+    # Simulate a restored, finished session with screenshots but no ledger/audio.
+    runtime.stopped = True
+    runtime.session.update(state='finished', finished_at=runtime.session['created_at'])
+    client.portal.call(runtime.save)
+    original = FakeAI().observe
+    windows = []
+    async def intermittent(ledger, frames, pcm):
+        windows.append([f['id'] for f in frames])
+        assert pcm == b''
+        if len(windows) == 2:
+            raise AIError('Synthetic overload in the second window.', 'model_busy')
+        return await original(ledger, frames, pcm)
+    client.app.state.service.ai.observe = intermittent
+    assert client.post('/api/sessions/'+session['id']+'/finalize', headers=headers).status_code == 202
+    assert wait_job(client, headers, session['id'])['job']['state'] == 'failed'
+    assert list(map(len, windows)) == [10, 2]
+    assert client.post('/api/sessions/'+session['id']+'/finalize', headers=headers).status_code == 202
+    state = wait_job(client, headers, session['id'])
+    assert state['job']['state'] == 'complete'
+    assert windows[2] == windows[1], 'Already processed screenshots must not be sent again'
+    assert len(state['observations']) == 2
+
 def test_retention_keeps_published_references_only(client):
     from datetime import datetime,timezone,timedelta
     headers,s,lesson,version=publish_lesson(client)

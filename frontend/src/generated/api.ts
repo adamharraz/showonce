@@ -881,7 +881,7 @@ export interface components {
              * State
              * @enum {string}
              */
-            state: "capturing" | "paused" | "quota_paused" | "interrupted" | "finished";
+            state: "capturing" | "paused" | "quota_paused" | "interrupted" | "finishing" | "finished";
             /** Title */
             title: string;
             /** Model */

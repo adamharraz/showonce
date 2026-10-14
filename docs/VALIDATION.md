@@ -4,7 +4,7 @@ No result below has been claimed as achieved. Use real sessions and consenting a
 
 ## Access and sustained-capture gate
 
-Run `scripts/probe_models.py` with the verified Free-tier key. Record the actual dashboard quotas for `gemini-3.5-flash-lite`; include date and screenshots with keys/account identifiers redacted. Lesson processing and formal checkpoint evaluation use this model exclusively. The separate Live Coach uses `gemini-3.8-live` and has its own validation record in `LIVE_COACH.md`. A model listing alone is insufficient.
+Run `scripts/probe_models.py` with the verified Free-tier key. Record the actual dashboard quotas for `gemini-3.1-flash-lite`; include date and screenshots with keys/account identifiers redacted. Lesson processing and formal checkpoint evaluation use this model exclusively. The separate Live Coach uses `gemini-3.8-live` and has its own validation record in `LIVE_COACH.md`. A model listing alone is insufficient.
 
 Then use one five-minute narrated ESP32 demonstration. Record session ID, chosen and actual model IDs, frame gaps, narration losses, provisional-step cadence, context failures, reconnects, finalization latency, usage and remaining quotas. Export the owner-only evidence bundle through the authenticated app/API. Check continuous narration and a pause/resume. Do not claim real-time AI if only capture transport succeeds.
 
@@ -51,7 +51,7 @@ Use actual exported step JSON and relevant teacher reference images. Keep `corre
 It uses real Flash-Lite requests, counts them against the shared application limit, and saves every accepted result/error, false passes, accuracy, latency and usage. No other model is called. Decide which classes remain automatic; change failing criteria to manual before publication. Repeat Flash-Lite on a completely separate 30-example holdout:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\evaluate_checkpoints.py evaluation\holdout.jsonl --models gemini-3.5-flash-lite --output artifacts\holdout.json
+.\.venv\Scripts\python.exe scripts\evaluate_checkpoints.py evaluation\holdout.jsonl --models gemini-3.1-flash-lite --output artifacts\holdout.json
 ```
 
 Use ten correct, ten incorrect, ten unclear. Targets: ≥90% classification accuracy and zero `met` predictions for incorrect/unclear examples. `Unable to assess` counts as a classification miss against these labelled classes; report abstention separately. Analyze each checkpoint class rather than relying only on pooled accuracy. Remove unsupported classes. Do not tune on the holdout and keep calling it a holdout.

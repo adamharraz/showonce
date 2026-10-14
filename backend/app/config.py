@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parents[1] / '.env')
 
-MODEL = 'gemini-3.5-flash-lite'
+MODEL = 'gemini-3.1-flash-lite'
 LIVE_MODEL = 'gemini-3.8-live'
 
 @dataclass

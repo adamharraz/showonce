@@ -111,7 +111,7 @@ class SessionRecord(Strict):
     owner_id: str
     mode: Literal['teach', 'practice']
     source: Literal['camera', 'screen', 'phone']
-    state: Literal['capturing', 'paused', 'quota_paused', 'interrupted', 'finished']
+    state: Literal['capturing', 'paused', 'quota_paused', 'interrupted', 'finishing', 'finished']
     title: str
     model: str
     created_at: str

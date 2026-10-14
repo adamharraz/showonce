@@ -172,7 +172,7 @@ def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_pro
             await runtime.finish()
             session = runtime.session
         else:
-            session['state'] = 'finished'; session['finished_at'] = now()
+            session['state'] = 'finished'; session['finished_at'] = session.get('finished_at') or now()
             await store.put('session', session)
         return await service.enqueue(session)
 
@@ -183,7 +183,7 @@ def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_pro
         if runtime and not runtime.stopped:
             await runtime.finish()
             return runtime.session
-        session['state'] = 'finished'; session['finished_at'] = now()
+        session['state'] = 'finished'; session['finished_at'] = session.get('finished_at') or now()
         await store.put('session', session)
         return session
 
@@ -191,7 +191,7 @@ def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_pro
     async def set_step(id: str, body: SetStep, current=Depends(user)):
         async with service.session_lock:
             session = await owned('session', id, current)
-            if session['mode'] != 'practice' or session['state'] == 'finished':
+            if session['mode'] != 'practice' or session['state'] in ('finishing', 'finished'):
                 raise HTTPException(409, 'Choose a step in an active practice session')
             version = await store.get('version', session['version_id'])
             if body.step_id not in {s['id'] for s in version['draft']['steps']}:
@@ -417,6 +417,8 @@ def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_pro
                         runtime.session['gaps'].append({'timestamp_ms': round(runtime.elapsed_ms), 'reason': 'The microphone could not flush its final audio chunk. Confirm essential narration at the end of the demonstration.'})
                     action = message.get('action')
                     if action in ('pause', 'resume'):
+                        if runtime.session['state'] in ('finishing', 'finished'):
+                            raise ValueError('Capture has ended; retry lesson finalization instead')
                         if action == 'resume' and (runtime.session['state'] == 'quota_paused' or (runtime.session.get('last_error') or {}).get('code') in ('quota', 'daily_limit')):
                             raise ValueError('Quota pause cannot be overridden in this session')
                         runtime.session['state'] = 'paused' if action == 'pause' else 'capturing'
@@ -442,7 +444,7 @@ def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_pro
                 runtime.sockets.discard(ws)
                 if producer_attached and getattr(runtime, 'producer', None) is ws:
                     runtime.producer = None
-                if not runtime.stopped and (producer_attached or (not producer and runtime.session['source'] != 'phone')):
+                if not runtime.stopped and runtime.session['state'] != 'finishing' and (producer_attached or (not producer and runtime.session['source'] != 'phone')):
                     if runtime.session['state'] != 'quota_paused':
                         runtime.session['state'] = 'paused'
                     runtime.session['gaps'].append({'timestamp_ms': 0, 'reason': 'Capture connection disconnected. Confirm any actions during the interruption.'})

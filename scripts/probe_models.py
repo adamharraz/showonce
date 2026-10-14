@@ -17,7 +17,7 @@ from app.storage import Store
 async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output', default='artifacts/model-access.json')
-    parser.add_argument('--models', nargs='+', choices=[MODEL], default=[MODEL], help='Only Gemini 3.5 Flash-Lite is permitted.')
+    parser.add_argument('--models', nargs='+', choices=[MODEL], default=[MODEL], help=f'Only {MODEL} is permitted.')
     args = parser.parse_args()
     settings = Settings(); ai = Gemini(settings)
     try: ai.ready()

@@ -2135,6 +2135,7 @@
               "paused",
               "quota_paused",
               "interrupted",
+              "finishing",
               "finished"
             ],
             "title": "State"

@@ -58,6 +58,7 @@ export function useCapture(
   endedRef.current = onEnded;
   const workletRef = useRef<AudioWorkletNode | null>(null);
   const flushRef = useRef<(() => Promise<boolean>) | null>(null);
+  const finalAudioRef = useRef(false);
   useEffect(() => {
     workletRef.current?.port.postMessage({ enabled });
   }, [enabled]);
@@ -144,7 +145,7 @@ export function useCapture(
             flushComplete = null;
             return;
           }
-          if (!enabledRef.current) return;
+          if (!enabledRef.current && !finalAudioRef.current) return;
           const input = event.data as Float32Array;
           const rate = audio!.sampleRate;
           const samples = Math.floor((input.length * 16000) / rate);
@@ -188,9 +189,24 @@ export function useCapture(
     };
   }, [stream]);
   const stop = () => {
+    enabledRef.current = false;
     stream?.getTracks().forEach((t) => t.stop());
     setStream(null);
   };
   const flushAudio = () => flushRef.current?.() || Promise.resolve(true);
-  return { stream, setStream, videoRef, stop, flushAudio };
+  const stopAndFlush = async () => {
+    // Stop new images and release camera/microphone immediately. Keep the worklet
+    // alive just long enough to send audio already buffered before Finish.
+    enabledRef.current = false;
+    finalAudioRef.current = true;
+    const flushed = flushAudio();
+    stream?.getTracks().forEach((t) => t.stop());
+    try {
+      return await flushed;
+    } finally {
+      finalAudioRef.current = false;
+      setStream(null);
+    }
+  };
+  return { stream, setStream, videoRef, stop, flushAudio, stopAndFlush };
 }

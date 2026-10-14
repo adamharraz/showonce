@@ -48,7 +48,7 @@ async def test_nested_tutorial_and_assessment_results_are_parsed(schema, payload
         ai = Gemini(Settings(data_dir=tmp_path, gemini_key='offline-test-key', free_tier_confirmed=True))
         ai.client = genai.Client(api_key='offline-test-key', http_options=types.HttpOptions(httpx_async_client=transport))
         try:
-            result = await ai.structured('gemini-3.5-flash-lite', 'Use supplied evidence.', 'Synthetic test.', schema)
+            result = await ai.structured(MODEL, 'Use supplied evidence.', 'Synthetic test.', schema)
             assert isinstance(result, schema)
         finally:
             await ai.client.aio.aclose()
@@ -65,7 +65,7 @@ async def test_full_local_validation_rejects_invalid_model_output(payload, tmp_p
         try:
             from app.ai import AIError
             with pytest.raises(AIError) as error:
-                await ai.structured('gemini-3.5-flash-lite', 'Use supplied evidence.', 'Synthetic test.', ObservationBatch)
+                await ai.structured(MODEL, 'Use supplied evidence.', 'Synthetic test.', ObservationBatch)
             assert error.value.code == 'invalid_output'
         finally:
             await ai.client.aio.aclose()
@@ -90,7 +90,7 @@ async def test_request_failure_is_classified_without_hidden_retries(status, code
             await ai.client.aio.aclose()
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('model', ['gemini-3.8-flash', 'gemini-robotics-er-2-preview', 'gemini-robotics-er-2-streaming-preview'])
+@pytest.mark.parametrize('model', ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-robotics-er-2-preview', 'gemini-robotics-er-2-streaming-preview'])
 async def test_other_models_are_rejected_before_any_request(model, tmp_path):
     requests = []
     def respond(request):

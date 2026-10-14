@@ -122,7 +122,8 @@ class Runtime:
 
     @property
     def elapsed_ms(self):
-        return (datetime.now(timezone.utc) - datetime.fromisoformat(self.session['created_at'])).total_seconds() * 1000
+        end = datetime.fromisoformat(self.session['finished_at']) if self.session.get('finished_at') else datetime.now(timezone.utc)
+        return max(0, (end - datetime.fromisoformat(self.session['created_at'])).total_seconds() * 1000)
 
     async def save(self):
         await self.service.store.put('session', self.session)
@@ -196,14 +197,17 @@ class Runtime:
                 if code in ('quota', 'daily_limit'):
                     if code == 'quota':
                         await self.service.block_quota()
-                    self.session['state'] = 'quota_paused'
+                    if self.session['state'] != 'finishing':
+                        self.session['state'] = 'quota_paused'
                     self.session['quota_date'] = datetime.now(timezone.utc).date().isoformat()
                 else:
-                    self.session['state'] = 'paused'
+                    if self.session['state'] != 'finishing':
+                        self.session['state'] = 'paused'
                 self.audio[:0] = pcm
                 await self.emit('notice', message=str(exc))
             except Exception:
-                self.session['state'] = 'paused'
+                if self.session['state'] != 'finishing':
+                    self.session['state'] = 'paused'
                 self.session['last_error'] = {'code': 'service_error', 'message': 'Analysis failed. Received evidence is preserved; resume to retry.'}
                 self.audio[:0] = pcm
                 log.warning('analysis_service_error session=%s', self.session['id'])
@@ -221,13 +225,19 @@ class Runtime:
     async def _finish(self):
         if self.stopped:
             return
-        if self.frames and self.session['state'] not in ('quota_paused', 'interrupted'):
+        previous_state = self.session['state']
+        # Capture ends before waiting for an in-flight model request. In particular,
+        # the paired phone must stop sending while the final window is analyzed.
+        self.session['finished_at'] = self.session.get('finished_at') or now()
+        self.session['state'] = 'finishing'
+        await self.save()
+        await self.emit('status', session=self.session)
+        if self.frames and previous_state not in ('quota_paused', 'interrupted'):
             await self.analyze()
         self.stopped = True
         self.session['state'] = 'finished'
         if self.frames:
             self.session['gaps'].append({'timestamp_ms': self.frames[0]['timestamp_ms'], 'reason': 'Some captured evidence was not analyzed. Review missing actions before publication.'})
-        self.session['finished_at'] = now()
         self.audio.clear()
         await self.save()
         await self.emit('status', session=self.session)
@@ -273,6 +283,10 @@ class Service:
 
     async def recover(self):
         for session in await self.store.all('session'):
+            if session['state'] == 'finishing':
+                session['state'] = 'finished'
+                session['gaps'].append({'timestamp_ms': 0, 'reason': 'Backend restarted during final analysis. Retry finalization to process saved screenshots; confirm any missing narration.'})
+                await self.store.put('session', session)
             if session['state'] in ('capturing', 'paused', 'quota_paused'):
                 session['state'] = 'interrupted'
                 session['gaps'].append({'timestamp_ms': 0, 'reason': 'Backend restarted. Resume capture or finalize the preserved observations.'})
@@ -353,20 +367,44 @@ class Service:
         previous = await self.store.get('job', 'job-' + session['id'])
         if previous and previous['state'] in ('queued', 'running', 'complete'):
             return previous
-        if not await self.observations(session['id']):
-            raise HTTPException(409, 'No AI observations are available yet. Configure AI before starting a new live demonstration; no tutorial will be invented.')
+        pending = await self.pending_frames(session['id'])
+        if not await self.observations(session['id']) and not pending:
+            raise HTTPException(409, 'No demonstration evidence is available. Capture a demonstration before creating a tutorial; no tutorial will be invented.')
         job = {'id': 'job-' + session['id'], 'owner_id': session['owner_id'], 'session_id': session['id'], 'state': 'queued', 'attempts': (previous or {}).get('attempts', 0), 'error': None}
         await self.store.put('job', job)
         task = asyncio.create_task(self.finalize(session, job))
         self.jobs.add(task); task.add_done_callback(self.jobs.discard)
         return job
 
+    async def pending_frames(self, session_id):
+        return sorted([f for f in await self.store.all('frame') if f['session_id'] == session_id and not f.get('processed', False)], key=lambda f: f['timestamp_ms'])
+
     async def finalize(self, session, job):
         started = time.monotonic()
         try:
             job['state'] = 'running'; job['attempts'] += 1
             await self.store.put('job', job)
+            # Reuse the successful observation -> ledger -> tutorial workflow.
+            # A failed live request must not strand a session with saved images
+            # but no ledger. Explicit finalization retries replay only its pending
+            # screenshots, in timestamp order, without inventing lost narration.
+            pending = await self.pending_frames(session['id'])
+            for offset in range(0, len(pending), 10):
+                batch = await self.frames_by_ids([f['id'] for f in pending[offset:offset + 10]])
+                async with self.ai_lock:
+                    await self.reserve_call()
+                    result = await self.ai.observe(await self.observations(session['id']), batch, b'')
+                    await self.accept_observations(session, result, batch)
+                    for frame in batch:
+                        await self.store.put('frame', {k: v for k, v in {**frame, 'processed': True}.items() if k != 'bytes'})
+                    session['last_analysis_at'] = now()
+                    session['last_error'] = None
+                    session['model'] = getattr(self.ai, 'actual_model', None) or session['model']
+                    await self.store.put('session', session)
+                    await self.store.put('metric', {'id': uid(), 'owner_id': session['owner_id'], 'session_id': session['id'], 'operation': 'observation_recovery', 'model': session['model'], 'latency_ms': round((time.monotonic()-started)*1000), 'usage': self.ai.last_usage, 'created_at': now()})
             ledger = await self.observations(session['id'])
+            if not ledger:
+                raise AIError('No supported actions were identified in this demonstration. Review the capture before trying again.', 'no_observations')
             ids = list(dict.fromkeys(f for o in ledger for f in o['evidence_ids']))
             frames = await self.frames_by_ids(ids)
             async with self.ai_lock:

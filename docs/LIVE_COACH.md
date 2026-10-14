@@ -14,7 +14,7 @@ The coach supports webcam and screen sharing. It does not add a second phone-pai
 
 ## Models and cost
 
-The coach uses `gemini-3.8-live`, Google's current default Live model, through the Gemini Developer API. Existing observation, tutorial generation, instructor clarification and formal assessments continue to use `gemini-3.5-flash-lite`. There are no Pro calls, Vertex AI deployment, paid fallback or alternative model fallback.
+The coach uses `gemini-3.8-live`, Google's current default Live model, through the Gemini Developer API. Existing observation, tutorial generation, instructor clarification and formal assessments continue to use `gemini-3.1-flash-lite`. There are no Pro calls, Vertex AI deployment, paid fallback or alternative model fallback.
 
 The owner confirmed the project has no paid billing. `FREE_TIER_CONFIRMED` remains a manual guard: the application cannot independently verify Google's billing status. A key alone does not enable AI. Both selected models list free input and output on the Developer API; usage must fit the account's actual quotas. Quota errors stop calls rather than enabling billing.
 

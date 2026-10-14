@@ -4,17 +4,19 @@ One live demonstration becomes a reviewed, reusable lesson. Students then practi
 
 ## Current delivery
 
-Hosted competition demo: **https://showonce.onrender.com** on Render Free, using public instructor/student role selection and temporary local storage. No demo access code is required. The redesigned interface, lesson previews/filters, entry consent and attributed ESP32 reference are merged into `main`. Export anything you need before the free service sleeps, restarts or redeploys. No Supabase project is required for this demo.
+Local demo: **http://localhost:8000**. The Render service is suspended and automatic deployment is off at the owner's request. The hosted configuration supports public instructor/student role selection and temporary local storage, with no demo access code. The redesigned interface, lesson previews/filters, entry consent and attributed ESP32 reference are merged into `main`. Export anything you need before a free hosted service sleeps, restarts or redeploys. No Supabase project is required for this demo.
+
+14 October lesson workflow fix: **Finish & review stops recording immediately**, freezes its duration and releases the laptop camera/microphone. Final window analysis and tutorial generation continue separately; the paired phone stops when the server acknowledges capture ending. Refreshing the session or retrying finalization preserves its original end time. The observation → ledger → tutorial → instructor review workflow now uses the requested Gemini 3.1 Flash-Lite exclusively. If a live request fails before producing observations, finalization can recover the session's saved, unprocessed screenshots in windows of up to ten images. Failed recovery leaves images available for another explicit retry. Audio is not persisted, so capture gaps and missing narration still require instructor confirmation. Provider overload can still delay or fail a request; there are no model substitutions or hidden SDK retries.
 
 Latest 13 October update: the main 3D workflow uses **Gemini 3.8 Live recognition → prepared component references → user confirmation**. ESP32, breadboard, LED, resistor and wire models render locally in the browser. Browsing requires no AI request or GPU generation; an explicit camera inspection uses the existing Live connection. Exact pin labels require confirmation of the supported ESP32 DevKit V1 30-pin variant; other boards remain generic. See [component library and validation](docs/COMPONENT_LIBRARY.md). Live microphone backlog is paced, and delivery bursts report a gap instead of closing the session.
 
 Earlier 13 October implementation: Stable Fast 3D was deployed on Modal and passed an official chair-sample generation test, but a subsequent real ESP32 photo produced hands/people while omitting the board. It has been replaced in the main interface by the component catalogue, and local mesh generation is disabled. Its original source and private saved outputs remain available for historical records; [photo-to-3D notes](docs/PHOTO_TO_3D.md) describe that experiment. The 200,000-token coaching cap remains removed; usage is still logged.
 
-Implemented: React/TypeScript capture and review app, FastAPI backend, webcam/screen/phone capture, temporary narration, windowed Gemini 3.5 Flash-Lite analysis, live camera/voice coaching with a side-by-side assistant, persistent observation ledger, clarification and editing, immutable published versions, practice feedback guards, private evidence, exports, failure recovery, free-tier controls, deployment configuration and evaluation tools.
+Implemented: React/TypeScript capture and review app, FastAPI backend, webcam/screen/phone capture, temporary narration, windowed Gemini 3.1 Flash-Lite analysis, live camera/voice coaching with a side-by-side assistant, persistent observation ledger, clarification and editing, immutable published versions, practice feedback guards, private evidence, exports, failure recovery, free-tier controls, deployment configuration and evaluation tools.
 
-**Real ER2 streaming, standard ER2 and Flash Lite requests passed the local access gate on 8 October 2026.** A real Flash Lite pipeline extracted a tutorial from synthetic before/after screenshots and identified a missing circle in a synthetic student image. This verifies API integration, not ESP32/Sheets accuracy, narration, real-device capture or TRL4. Actual account quotas and beginner pilots remain unverified. The app never substitutes canned responses for live AI; fake model results exist only in tests.
+**Historical: real ER2 streaming, standard ER2 and Gemini 3.5 Flash-Lite requests passed the local access gate on 8 October 2026.** A real Flash Lite pipeline extracted a tutorial from synthetic before/after screenshots and identified a missing circle in a synthetic student image. This verifies API integration, not ESP32/Sheets accuracy, narration, real-device capture or TRL4. Actual account quotas and beginner pilots remain unverified. The app never substitutes canned responses for live AI; fake model results exist only in tests.
 
-The local app works without cloud credentials. This workspace has a private Gemini key and its Free-tier guard enabled following the owner's confirmation that paid billing is absent. Clones need their own key and Free-tier confirmation. The latest 12 October request adds an explicit Live Coach using `gemini-3.8-live` for real-time camera/voice conversation. Existing lesson processing stays pinned to `gemini-3.5-flash-lite`. Both identifiers are fixed, and no model fallback is enabled. Earlier ER2 access-gate results above are historical. See `docs/LIVE_COACH.md` for live setup, cost assumptions, limits and validation.
+The local app works without cloud credentials. This workspace has a private Gemini key and its Free-tier guard enabled following the owner's confirmation that paid billing is absent. Clones need their own key and Free-tier confirmation. The latest 12 October request adds an explicit Live Coach using `gemini-3.8-live` for real-time camera/voice conversation. Existing lesson processing stays pinned to `gemini-3.1-flash-lite`. Both identifiers are fixed, and no model fallback is enabled. Earlier ER2 access-gate results above are historical. See `docs/LIVE_COACH.md` for live setup, cost assumptions, limits and validation.
 
 ## Run locally on Windows
 
@@ -49,10 +51,10 @@ Fixed model responsibilities:
 
 | Operation | Model |
 |---|---|
-| Camera, phone and screen instructor observation | `gemini-3.5-flash-lite` |
-| Final tutorial and instructor clarification | `gemini-3.5-flash-lite` |
-| Physical and software learner checking | `gemini-3.5-flash-lite` |
-| Access probes and checkpoint evaluation | `gemini-3.5-flash-lite` |
+| Camera, phone and screen instructor observation | `gemini-3.1-flash-lite` |
+| Final tutorial and instructor clarification | `gemini-3.1-flash-lite` |
+| Physical and software learner checking | `gemini-3.1-flash-lite` |
+| Access probes and checkpoint evaluation | `gemini-3.1-flash-lite` |
 | Explicit Live Coach camera, conversation and speech | `gemini-3.8-live` |
 
 This restriction applies to local and hosted installations; `/api/config` reports the model. The structured adapter rejects other lesson models before sending a request, and evaluation tools reject them at argument parsing. The separate Live Coach bridge connects only to its fixed Live model. Google GenAI SDK 2.29.0 is pinned for the current Interactions schema and `steps` responses. Structured requests use a compact JSON schema; full Pydantic validation still rejects invalid types, oversized fields and unknown properties. SDK automatic retries are disabled so quota and capacity failures remain explicit.
@@ -136,5 +138,5 @@ No hardware has been purchased, no billing enabled and no cloud service provisio
 
 The preloaded blink sketch is in `hardware/esp32_blink/esp32_blink.ino`. It has not been compiled/flashed on the user's board. Task-specific firmware constants are kept outside the AI prompts. Phone narration uses short PCM chunks; leave a brief pause after the final sentence and check end-of-capture losses during the real-device gate.
 
-Official integration references: [Flash-Lite](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite), [pricing](https://ai.google.dev/gemini-api/docs/pricing), [actual quotas](https://ai.google.dev/gemini-api/docs/rate-limits), [API terms](https://ai.google.dev/gemini-api/terms), [Render Free](https://render.com/docs/free), [Supabase Free](https://supabase.com/pricing), [browser capture](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia).
+Official integration references: [Flash-Lite](https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite), [pricing](https://ai.google.dev/gemini-api/docs/pricing), [actual quotas](https://ai.google.dev/gemini-api/docs/rate-limits), [API terms](https://ai.google.dev/gemini-api/terms), [Render Free](https://render.com/docs/free), [Supabase Free](https://supabase.com/pricing), [browser capture](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia).
 
