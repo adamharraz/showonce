@@ -12,6 +12,17 @@ const assert = require('node:assert/strict');
     page.on('pageerror', e => errors.push(e.message));
     await page.goto('http://127.0.0.1:8001/');
     await page.getByRole('heading', {level:1, name:/Turn your demonstration/}).waitFor();
+    await page.getByRole('button',{name:'Explore ShowOnce',exact:true}).click();
+    await page.getByRole('link',{name:'Evidence & Testing',exact:true}).click();
+    await page.getByRole('heading',{name:'Early feedback. Clear next steps.',exact:true}).waitFor();
+    for (const width of [1440,768,390,320]) {
+      await page.setViewportSize({width,height:1000});
+      await page.evaluate(() => document.fonts.ready);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),false,`Evidence overflow at ${width}`);
+      await page.screenshot({path:`artifacts/ui/evidence-${width}.png`,fullPage:true});
+    }
+    assert.equal(await page.locator('.evidence-metrics article').count(),3);
+    await page.getByRole('link',{name:'Back to homepage',exact:true}).click();
     await page.locator('.home-features').scrollIntoViewIfNeeded();
     await page.waitForFunction(() => [...document.querySelectorAll('.home-features img')].every(i => i.complete && i.naturalWidth > 0));
     await page.evaluate(() => scrollTo(0,0));
@@ -24,8 +35,6 @@ const assert = require('node:assert/strict');
     }
     await page.getByRole('link',{name:'How it works',exact:true}).click();
     assert.equal(new URL(page.url()).hash, '#how-it-works');
-    await page.getByRole('link',{name:'What you can do',exact:true}).click();
-    assert.equal(new URL(page.url()).hash, '#possibilities');
     await page.getByRole('link',{name:'Back to top ↑',exact:true}).click();
     await page.keyboard.press('Tab');
     assert.ok(await page.evaluate(() => document.activeElement?.tagName === 'A'));

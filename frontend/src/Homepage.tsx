@@ -4,19 +4,13 @@ import capturePreview from "./assets/homepage/capture.png";
 import lessonPreview from "./assets/homepage/lesson.png";
 import coachPreview from "./assets/homepage/coach.png";
 import "./homepage.css";
+import { PublicHeader, PublicFooter } from "./PublicNavigation";
 
 export default function Homepage() {
   const enter = <a className="button primary" href="/enter">Open ShowOnce <ArrowRight size={18} /></a>;
   return <div className="public-home" id="top">
     <a className="skip-link" href="#home-content">Skip to content</a>
-    <header className="home-header">
-      <a className="home-brand" href="/welcome" aria-label="ShowOnce home">ShowOnce<span>.</span></a>
-      <nav aria-label="Homepage navigation">
-        <a href="#how-it-works">How it works</a>
-        <a href="#possibilities">What you can do</a>
-        {enter}
-      </nav>
-    </header>
+    <PublicHeader />
     <main id="home-content" tabIndex={-1}>
       <section className="home-hero home-width">
         <div className="home-hero-copy">
@@ -60,6 +54,6 @@ export default function Homepage() {
       </section>
       <section className="home-closing"><h2>Ready to show what you know?</h2><p>Start with one task. Make it easier for someone else to learn.</p>{enter}</section>
     </main>
-    <footer className="home-footer home-width"><a className="home-brand" href="#top">ShowOnce<span>.</span></a><span>Learn by doing. Share what you know.</span><a href="#top">Back to top ↑</a></footer>
+    <PublicFooter />
   </div>;
 }
