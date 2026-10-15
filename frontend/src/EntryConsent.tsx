@@ -22,9 +22,7 @@ export default function EntryConsent({
           information out of view.
         </label>
         <p className="fine">
-          Live camera and audio are streamed, not recorded. Conversations are
-          saved privately for seven days. Demonstration media may be saved with
-          your lesson.
+          Live Coach streams camera and audio. Teach a task records the complete video and selected microphone audio, saves it privately, and sends it to Google for lesson analysis. Recordings are retained for seven days; selected lesson screenshots remain with published lessons.
         </p>
         <button
           className="button primary"

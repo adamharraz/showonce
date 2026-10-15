@@ -5,6 +5,8 @@ import io
 import json
 import logging
 import time
+import tempfile
+from pathlib import Path
 from PIL import Image, ImageOps
 from fastapi import HTTPException
 from .ai import AIError
@@ -62,6 +64,7 @@ class Runtime:
         self.analysis_lock = asyncio.Lock()
         self.finish_lock = asyncio.Lock()
         self.storage_lock = asyncio.Lock()
+        self.last_capture_timestamp = None
         self.last_frame = 0.
         self.stopped = False
         self.last_media = time.monotonic()
@@ -87,8 +90,12 @@ class Runtime:
             await self.save(); await self.emit('status', session=self.session)
             await self.finish()
             return
-        if time.monotonic() - self.last_frame < .8:
-            raise ValueError('Capture is limited to one frame per second')
+        # Network/event-loop buffering can deliver correctly paced frames together.
+        # Limit capture cadence, not arrival cadence; excess samples are nonfatal.
+        if self.last_capture_timestamp is not None and msg.timestamp_ms - self.last_capture_timestamp < 800:
+            await self.emit('notice', message='An extra or out-of-order frame was skipped; recording continues.')
+            return
+        self.last_capture_timestamp = msg.timestamp_ms
         self.last_frame = time.monotonic()
         self.last_media = self.last_frame
         raw = base64.b64decode(msg.data, validate=True)
@@ -108,6 +115,8 @@ class Runtime:
         await self.service.store.put_blob(frame['key'], output.getvalue())
         await self.service.store.put('frame', frame)
         self.frames.append({**frame, 'bytes': output.getvalue()})
+        if self.session.get('recording_required') and len(self.frames) > 40:
+            self.frames = self.frames[-20:]  # Preview may skip; durable recording remains complete.
         if len(self.frames) > 40:
             self.session['state'] = 'paused'
             self.session['gaps'].append({'timestamp_ms': msg.timestamp_ms, 'reason': 'Analysis backlog exceeded 40 frames. Capture paused; all received frames remain saved.'})
@@ -130,10 +139,10 @@ class Runtime:
 
     async def loop(self):
         try:
-            next_update = time.monotonic() + self.service.settings.interval
+            next_update = time.monotonic() + (max(30, self.service.settings.interval) if self.session.get('recording_required') else self.service.settings.interval)
             while not self.stopped:
                 await asyncio.sleep(max(0, next_update - time.monotonic()))
-                next_update = time.monotonic() + self.service.settings.interval
+                next_update = time.monotonic() + (max(30, self.service.settings.interval) if self.session.get('recording_required') else self.service.settings.interval)
                 if self.elapsed_ms >= self.limit_ms:
                     await self.finish()
                     break
@@ -151,7 +160,7 @@ class Runtime:
         async with self.analysis_lock:
             if not self.frames or self.session['state'] in ('quota_paused', 'finished', 'interrupted'):
                 return
-            batch = list(self.frames)
+            batch = list(self.frames[-10:] if self.session.get('recording_required') else self.frames)
             pcm = bytes(self.audio)
             self.audio.clear()
             started = time.monotonic()
@@ -197,16 +206,16 @@ class Runtime:
                 if code in ('quota', 'daily_limit'):
                     if code == 'quota':
                         await self.service.block_quota()
-                    if self.session['state'] != 'finishing':
+                    if self.session['state'] != 'finishing' and not self.session.get('recording_required'):
                         self.session['state'] = 'quota_paused'
                     self.session['quota_date'] = datetime.now(timezone.utc).date().isoformat()
                 else:
-                    if self.session['state'] != 'finishing':
+                    if self.session['state'] != 'finishing' and not self.session.get('recording_required'):
                         self.session['state'] = 'paused'
                 self.audio[:0] = pcm
                 await self.emit('notice', message=str(exc))
             except Exception:
-                if self.session['state'] != 'finishing':
+                if self.session['state'] != 'finishing' and not self.session.get('recording_required'):
                     self.session['state'] = 'paused'
                 self.session['last_error'] = {'code': 'service_error', 'message': 'Analysis failed. Received evidence is preserved; resume to retry.'}
                 self.audio[:0] = pcm
@@ -218,12 +227,37 @@ class Runtime:
         for frame in frames:
             await self.service.store.put('frame', {k: v for k, v in {**frame, 'processed': True}.items() if k != 'bytes'})
 
+    async def interrupt_capture(self):
+        if self.stopped or self.session.get('finished_at'):
+            return
+        self.stopped = True
+        self.session['finished_at'] = now()
+        self.session['state'] = 'finished'
+        reason = 'Recording terminated because capture was interrupted. Saved evidence is available for review; start a new session to record again.'
+        if (self.session.get('last_error') or {}).get('code') not in ('quota', 'daily_limit'):
+            self.session['last_error'] = {'code': 'capture_interrupted', 'message': reason}
+        self.session['gaps'].append({'timestamp_ms': round(self.elapsed_ms), 'reason': reason})
+        self.task.cancel()
+        self.audio.clear()
+        await self.save()
+        await self.emit('status', session=self.session)
+
     async def finish(self):
         async with self.finish_lock:
             await self._finish()
 
     async def _finish(self):
         if self.stopped:
+            return
+        if self.session.get('recording_required'):
+            self.session['finished_at'] = self.session.get('finished_at') or now()
+            self.session['state'] = 'finished'
+            self.stopped = True
+            if asyncio.current_task() is not self.task:
+                self.task.cancel()
+            self.audio.clear()
+            await self.save()
+            await self.emit('status', session=self.session)
             return
         previous_state = self.session['state']
         # Capture ends before waiting for an in-flight model request. In particular,
@@ -308,6 +342,11 @@ class Service:
                 log.warning('retention_cleanup_failed')
 
     async def cleanup(self):
+        for recording in await self.store.all('recording'):
+            if recording.get('created_at', time.time()) < time.time() - 7*86400:
+                for chunk in recording['chunks']:
+                    await self.store.delete_blob(chunk['key'])
+                await self.store.delete('recording', recording['id'])
         sessions = {s['id']: s for s in await self.store.all('session')}
         retained = {f for v in await self.store.all('version') for s in v['draft']['steps'] for f in s['evidence_ids']}
         cutoff = datetime.now(timezone.utc) - timedelta(days=7)
@@ -367,8 +406,11 @@ class Service:
         previous = await self.store.get('job', 'job-' + session['id'])
         if previous and previous['state'] in ('queued', 'running', 'complete'):
             return previous
+        recording = await self.store.get('recording', 'recording-' + session['id']) if session.get('recording_required') else None
+        if session.get('recording_required') and (not recording or recording['state'] != 'complete'):
+            raise HTTPException(409, 'The complete recording is not saved and verified yet. Retry its upload before generating the lesson.')
         pending = await self.pending_frames(session['id'])
-        if not await self.observations(session['id']) and not pending:
+        if not recording and not await self.observations(session['id']) and not pending:
             raise HTTPException(409, 'No demonstration evidence is available. Capture a demonstration before creating a tutorial; no tutorial will be invented.')
         job = {'id': 'job-' + session['id'], 'owner_id': session['owner_id'], 'session_id': session['id'], 'state': 'queued', 'attempts': (previous or {}).get('attempts', 0), 'error': None}
         await self.store.put('job', job)
@@ -384,32 +426,35 @@ class Service:
         try:
             job['state'] = 'running'; job['attempts'] += 1
             await self.store.put('job', job)
-            # Reuse the successful observation -> ledger -> tutorial workflow.
-            # A failed live request must not strand a session with saved images
-            # but no ledger. Explicit finalization retries replay only its pending
-            # screenshots, in timestamp order, without inventing lost narration.
-            pending = await self.pending_frames(session['id'])
-            for offset in range(0, len(pending), 10):
-                batch = await self.frames_by_ids([f['id'] for f in pending[offset:offset + 10]])
+            if session.get('recording_required'):
+                draft, ids = await self.finalize_recording(session)
+            else:
+                # Reuse the successful observation -> ledger -> tutorial workflow.
+                # A failed live request must not strand a session with saved images
+                # but no ledger. Explicit finalization retries replay only its pending
+                # screenshots, in timestamp order, without inventing lost narration.
+                pending = await self.pending_frames(session['id'])
+                for offset in range(0, len(pending), 10):
+                    batch = await self.frames_by_ids([f['id'] for f in pending[offset:offset + 10]])
+                    async with self.ai_lock:
+                        await self.reserve_call()
+                        result = await self.ai.observe(await self.observations(session['id']), batch, b'')
+                        await self.accept_observations(session, result, batch)
+                        for frame in batch:
+                            await self.store.put('frame', {k: v for k, v in {**frame, 'processed': True}.items() if k != 'bytes'})
+                        session['last_analysis_at'] = now()
+                        session['last_error'] = None
+                        session['model'] = getattr(self.ai, 'actual_model', None) or session['model']
+                        await self.store.put('session', session)
+                        await self.store.put('metric', {'id': uid(), 'owner_id': session['owner_id'], 'session_id': session['id'], 'operation': 'observation_recovery', 'model': session['model'], 'latency_ms': round((time.monotonic()-started)*1000), 'usage': self.ai.last_usage, 'created_at': now()})
+                ledger = await self.observations(session['id'])
+                if not ledger:
+                    raise AIError('No supported actions were identified in this demonstration. Review the capture before trying again.', 'no_observations')
+                ids = list(dict.fromkeys(f for o in ledger for f in o['evidence_ids']))
+                frames = await self.frames_by_ids(ids)
                 async with self.ai_lock:
                     await self.reserve_call()
-                    result = await self.ai.observe(await self.observations(session['id']), batch, b'')
-                    await self.accept_observations(session, result, batch)
-                    for frame in batch:
-                        await self.store.put('frame', {k: v for k, v in {**frame, 'processed': True}.items() if k != 'bytes'})
-                    session['last_analysis_at'] = now()
-                    session['last_error'] = None
-                    session['model'] = getattr(self.ai, 'actual_model', None) or session['model']
-                    await self.store.put('session', session)
-                    await self.store.put('metric', {'id': uid(), 'owner_id': session['owner_id'], 'session_id': session['id'], 'operation': 'observation_recovery', 'model': session['model'], 'latency_ms': round((time.monotonic()-started)*1000), 'usage': self.ai.last_usage, 'created_at': now()})
-            ledger = await self.observations(session['id'])
-            if not ledger:
-                raise AIError('No supported actions were identified in this demonstration. Review the capture before trying again.', 'no_observations')
-            ids = list(dict.fromkeys(f for o in ledger for f in o['evidence_ids']))
-            frames = await self.frames_by_ids(ids)
-            async with self.ai_lock:
-                await self.reserve_call()
-                draft = await self.ai.finalize(ledger, frames, session['gaps'])
+                    draft = await self.ai.finalize(ledger, frames, session['gaps'])
             validate_draft(draft, ids)
             await self.store.put('metric', {'id': uid(), 'owner_id': session['owner_id'], 'session_id': session['id'], 'operation': 'finalization', 'model': self.ai.actual_model, 'latency_ms': round((time.monotonic()-started)*1000), 'usage': self.ai.last_usage, 'created_at': now()})
             if session['gaps']:
@@ -432,6 +477,43 @@ class Service:
         runtime = self.runtimes.get(session['id'])
         if runtime:
             await runtime.emit('job', job=job)
+
+    async def finalize_recording(self, session):
+        from .recordings import media_command
+        record = await self.store.get('recording', 'recording-' + session['id'])
+        if not record or record['state'] != 'complete':
+            raise ValueError('A complete verified recording is required')
+        with tempfile.TemporaryDirectory(prefix='showonce-analysis-') as temp:
+            directory = Path(temp)
+            path = await self.recordings.materialize(record, directory)
+            async with self.ai_lock:
+                await self.reserve_call()
+                draft = await self.ai.finalize_video(path, record, session['gaps'])
+            ids = []
+            for index, step in enumerate(draft.steps):
+                if not 0 <= step.timestamp_ms <= record['duration_ms']:
+                    raise ValueError('The model returned a timestamp outside the recording')
+                at = min(step.timestamp_ms, max(0, record['duration_ms']-100))
+                screenshot = directory/f'{index}.jpg'
+                await asyncio.to_thread(media_command, ['ffmpeg', '-v', 'error', '-y', '-ss', str(at/1000), '-i', str(path), '-frames:v', '1', str(screenshot)])
+                if not screenshot.exists():
+                    raise ValueError('Could not extract the referenced lesson screenshot')
+                frame_id = f"{session['id']}-recording-{index}"
+                key = f"{session['id']}/recording-{index}.jpg"
+                await self.store.put_blob(key, screenshot.read_bytes())
+                await self.store.put('frame', {'id': frame_id, 'owner_id': session['owner_id'], 'session_id': session['id'], 'timestamp_ms': at+record['start_ms'], 'processed': True, 'key': key, 'created_at': now()})
+                step.evidence_ids = [frame_id]
+                step.timestamp_ms += record['start_ms']
+                ids.append(frame_id)
+            session['model'] = self.ai.actual_model
+            session['title'] = draft.title
+            session['last_analysis_at'] = now()
+            if (session.get('last_error') or {}).get('code') != 'capture_interrupted':
+                session['last_error'] = None
+            await self.store.put('session', session)
+            record['analysis_state'] = 'complete'
+            await self.store.put('recording', record)
+            return draft, ids
 
     async def close(self):
         if self.cleanup_task:

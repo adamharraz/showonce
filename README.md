@@ -52,16 +52,17 @@ Fixed model responsibilities:
 | Operation | Model |
 |---|---|
 | Camera, phone and screen instructor observation | `gemini-3.1-flash-lite` |
-| Final tutorial and instructor clarification | `gemini-3.1-flash-lite` |
+| Whole-recording final tutorial | `gemini-3.8-flash` |
+| Legacy screenshot tutorial and instructor clarification | `gemini-3.1-flash-lite` |
 | Physical and software learner checking | `gemini-3.1-flash-lite` |
 | Access probes and checkpoint evaluation | `gemini-3.1-flash-lite` |
 | Explicit Live Coach camera, conversation and speech | `gemini-3.8-live` |
 
-This restriction applies to local and hosted installations; `/api/config` reports the model. The structured adapter rejects other lesson models before sending a request, and evaluation tools reject them at argument parsing. The separate Live Coach bridge connects only to its fixed Live model. Google GenAI SDK 2.29.0 is pinned for the current Interactions schema and `steps` responses. Structured requests use a compact JSON schema; full Pydantic validation still rejects invalid types, oversized fields and unknown properties. SDK automatic retries are disabled so quota and capacity failures remain explicit.
+This restriction applies to local and hosted installations; `/api/config` reports the model. The screenshot adapter permits only 3.1 Flash-Lite; the dedicated whole-video adapter permits only 3.8 Flash. Neither automatically substitutes another model. The separate Live Coach bridge connects only to its fixed Live model. Google GenAI SDK 2.29.0 is pinned for the current Interactions schema and `steps` responses. Structured requests use a compact JSON schema; full Pydantic validation still rejects invalid types, oversized fields and unknown properties. SDK automatic retries are disabled so quota and capacity failures remain explicit.
 
 Validate Flash-Lite physical assessment on real labelled examples and narrow automatic checks to supported classes. Neither robotics actions nor generated code are executed.
 
-Model-unavailable errors, invalid outputs and connection failures pause analysis and preserve affected frames. Quota errors lock the session's checking. Resume or retry explicitly with Flash-Lite when appropriate; no other model is called. Retry finalization explicitly after a failed job or backend restart. If Flash-Lite cannot produce a usable lesson within free quotas, record the gate as failed.
+Model-unavailable errors, invalid outputs and connection failures pause analysis and preserve affected frames. Quota errors lock the session's checking. Resume or retry explicitly using the assigned operation model. New complete recordings use 3.8 Flash for final analysis. Retry finalization explicitly after a failed job or backend restart. If Flash-Lite cannot produce a usable lesson within free quotas, record the gate as failed.
 
 The daily analysis-operation limit defaults to 120 and allows one active session. It is an extra application limit, **not the account's actual quota and not a token/cost guarantee**. Each structured operation makes at most one request, including failed attempts. Live coaching counts connections and replies against the same application guard; this does not equal Google's streaming quota accounting. The Free-tier account restriction is what keeps API cash spending at zero. A quota error blocks subsequent requests for the current UTC day, including after a restart; the next day's guard reset does not guarantee that Google's quota has reset.
 
@@ -77,7 +78,7 @@ The daily analysis-operation limit defaults to 120 and allows one active session
 
 Instructor sessions last at most five minutes from creation; practice lasts ten minutes, including pauses. Capture is 1 FPS, JPEG up to 1600px; optional mono 16kHz PCM stays in memory. Analysis is requested about every ten seconds after the preceding request. **10–15 seconds is a target, not a measured promise.** Slow inference, cold starts or quotas can exceed it. A backlog pauses capture with an explicit gap.
 
-Phone pairing uses a single-use ticket expiring in two minutes. Camera access needs hosted HTTPS; a phone cannot use the laptop's localhost URL. No tunnelling dependency is assumed. Use laptop webcam/screen capture for the local backup. A disconnected phone requires a fresh QR ticket; the main controller reconnects once. The phone ticket grants capture only, not lesson access or session control.
+Phone pairing uses a single-use ticket expiring in two minutes. Camera access needs hosted HTTPS; a phone cannot use the laptop's localhost URL. No tunnelling dependency is assumed. Use laptop webcam/screen capture for the local backup. A capture disconnect terminates the recording, stops the camera and freezes the timer. There is no automatic reconnect or recording resume: start a new session. Received screenshots remain available for explicit partial-lesson finalization, with the interruption flagged for review. The phone ticket grants capture only, not lesson access or session control.
 
 ## Deploy the competition demo to Render Free
 
@@ -126,7 +127,7 @@ Real evaluation instructions, deadlines, responsibilities, checkpoint dataset fo
 
 `frontend/src` contains capture, instructor review, library, practice and phone screens. `backend/app` contains strict schemas, authenticated APIs/WebSockets, a storage adapter, serialized runtime processing and real model adapters. `scripts` contains account setup, access gates and evaluation. `supabase` and the Docker/Render configuration contain hosted setup.
 
-Capture → saved screenshots + in-memory audio → generic observation extractor → persistent ledger → structured tutorial → instructor review → immutable version → checkpoint assessment. There is no ESP32 or Sheets checklist in generation prompts. Human evaluation checklists are separate documents. Captured screen text and narration are evidence, not commands to the app/model tools.
+New teaching sessions: continuous MediaRecorder video/audio → browser IndexedDB and ordered private server chunks → FFmpeg integrity and track-coverage checks → Gemini 3.8 Flash whole-video request → timestamped screenshot extraction → instructor review → immutable version. Gemini 3.1 Flash-Lite preview observations are optional and may lag without stopping the recording. Existing screenshot-only sessions retain their legacy path. There is no ESP32 or Sheets checklist in generation prompts. Human evaluation checklists are separate documents. Captured screen text and narration are evidence, not commands to the app/model tools.
 
 The API is documented at `/docs`. Run `backend/export_schema.py` and `npm run types --prefix frontend` after schema changes. The records table stores typed payloads as JSONB to keep this prototype small; this is not intended for large multi-school workloads.
 
@@ -140,3 +141,14 @@ The preloaded blink sketch is in `hardware/esp32_blink/esp32_blink.ino`. It has 
 
 Official integration references: [Flash-Lite](https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite), [pricing](https://ai.google.dev/gemini-api/docs/pricing), [actual quotas](https://ai.google.dev/gemini-api/docs/rate-limits), [API terms](https://ai.google.dev/gemini-api/terms), [Render Free](https://render.com/docs/free), [Supabase Free](https://supabase.com/pricing), [browser capture](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia).
 
+
+
+### Full-session recording (15 October)
+
+New teaching sessions retain video and the selected microphone track for seven days on the backend. Successfully uploaded browser copies are removed after verification; failed uploads remain locally for retry. FFmpeg and ffprobe must be on PATH (the Docker image installs them). The recording cap is five minutes and 300 MB. Camera and microphone loss terminate recording; model delays do not. Pause is disabled for continuous teaching recordings; use Finish instead.
+
+Finish stops media immediately, verifies ordered chunks, decodes audio/video, checks track coverage, and submits the entire file to `gemini-3.8-flash`. Selected screenshots are extracted at validated model timestamps. A complete-input status is not a guarantee of semantic understanding. No automatic model fallback or paid billing is enabled. Provisional observations and legacy lessons use `gemini-3.1-flash-lite`; Live Coach remains `gemini-3.8-live`.
+
+Use Retry finalization for saved verified recordings. A finished local upload that failed can be retried from the Teach setup page's recovery button. Keep a paired phone page open until its upload completes. Browser crashes before the recorder emits its final chunk cannot be described as a complete recording. Hosted Free ephemeral storage is not durable; deployment remains suspended.
+
+Validation: synthetic media covers chunk idempotency, missing/corrupt data rejection, ownership and scoped phone tokens, full-video finalization and timestamp extraction, and preview backlog behavior. Browser persistence tests cover the final media chunk, duplicate Finish calls and upload retry. A real synthetic narrated-video request to 3.8 returned model_busy; successful live whole-video quality validation remains outstanding. No user footage was used for that probe.

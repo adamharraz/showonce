@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parents[1] / '.env')
 
 MODEL = 'gemini-3.1-flash-lite'
+FINAL_MODEL = 'gemini-3.8-flash'
 LIVE_MODEL = 'gemini-3.8-live'
 
 @dataclass
@@ -18,7 +19,7 @@ class Settings:
     supabase_anon: str = field(default_factory=lambda: os.getenv('SUPABASE_ANON_KEY', ''))
     supabase_service: str = field(default_factory=lambda: os.getenv('SUPABASE_SERVICE_ROLE_KEY', ''))
     origin: str = field(default_factory=lambda: (os.getenv('APP_ORIGIN') or os.getenv('RENDER_EXTERNAL_URL') or 'http://localhost:8000').rstrip('/'))
-    # Lesson processing remains fixed; Live is used only by the explicit coach.
+    # Preview and legacy lessons remain fixed; complete video uses FINAL_MODEL.
     general_model: str = field(default=MODEL, init=False)
     coach_model: str = field(default=LIVE_MODEL, init=False)
     coach_enabled: bool = field(default_factory=lambda: os.getenv('LIVE_COACH_ENABLED', 'true').lower() == 'true')

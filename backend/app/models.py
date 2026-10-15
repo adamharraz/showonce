@@ -75,6 +75,7 @@ class AssessmentOutput(Strict):
     criteria: list[CriterionResult] = Field(default_factory=list, max_length=8)
 
 class CreateSession(Strict):
+    recording_required: bool = False
     mode: Literal['teach', 'practice']
     source: Literal['camera', 'screen', 'phone']
     lesson_id: str | None = None
@@ -107,6 +108,7 @@ class CaptureGap(Strict):
     reason: str
 
 class SessionRecord(Strict):
+    recording_required: bool = False
     id: str
     owner_id: str
     mode: Literal['teach', 'practice']

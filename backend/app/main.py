@@ -1,3 +1,4 @@
+import logging
 import asyncio
 from contextlib import asynccontextmanager
 import io
@@ -10,7 +11,8 @@ from fastapi import FastAPI, Depends, HTTPException, Request, WebSocket, WebSock
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from .config import Settings
+from .config import Settings, FINAL_MODEL
+from .recordings import Recordings
 from .storage import Store
 from .auth import Auth
 from .ai import Gemini
@@ -27,6 +29,8 @@ def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_pro
     service = Service(settings, store, ai or Gemini(settings))
     coach = CoachManager(settings, service, auth, coach_bridge_factory)
     service.coach = coach
+    recordings = Recordings(store, auth)
+    service.recordings = recordings
     twins = TwinManager(settings, store, twin_provider)
 
     @asynccontextmanager
@@ -48,6 +52,7 @@ def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_pro
         header = request.headers.get('authorization', '')
         return await auth.user(header.removeprefix('Bearer '))
 
+    recordings.register(app, user)
     coach.register(app, user)
     twins.register(app, user)
     app.state.coach = coach
@@ -73,7 +78,7 @@ def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_pro
 
     @app.get('/api/config')
     async def config():
-        return {'local_login': settings.storage_mode == 'local' and settings.allow_local_login, 'demo_mode': settings.demo_mode, 'storage_mode': settings.storage_mode, 'ai_configured': bool(settings.gemini_key), 'free_tier_confirmed': settings.free_tier_confirmed, 'supabase_url': settings.supabase_url, 'supabase_anon_key': settings.supabase_anon, 'analysis_interval': settings.interval, 'daily_limit': settings.daily_limit, 'physical_model': settings.general_model, 'general_model': settings.general_model, 'app_origin': settings.origin, 'coach_model': settings.coach_model, 'coach_enabled': settings.coach_enabled, 'coach_limit_seconds': settings.coach_seconds, 'twin_enabled':settings.twin_enabled, 'twin_free_confirmed':settings.twin_free_confirmed, 'twin_model':'stabilityai/stable-fast-3d', 'twin_daily_limit':settings.twin_daily_limit, 'twin_total_limit':settings.twin_total_limit}
+        return {'local_login': settings.storage_mode == 'local' and settings.allow_local_login, 'demo_mode': settings.demo_mode, 'storage_mode': settings.storage_mode, 'ai_configured': bool(settings.gemini_key), 'free_tier_confirmed': settings.free_tier_confirmed, 'supabase_url': settings.supabase_url, 'supabase_anon_key': settings.supabase_anon, 'analysis_interval': settings.interval, 'daily_limit': settings.daily_limit, 'physical_model': settings.general_model, 'general_model': settings.general_model, 'final_model': FINAL_MODEL, 'app_origin': settings.origin, 'coach_model': settings.coach_model, 'coach_enabled': settings.coach_enabled, 'coach_limit_seconds': settings.coach_seconds, 'twin_enabled':settings.twin_enabled, 'twin_free_confirmed':settings.twin_free_confirmed, 'twin_model':'stabilityai/stable-fast-3d', 'twin_daily_limit':settings.twin_daily_limit, 'twin_total_limit':settings.twin_total_limit}
 
     @app.get('/api/health')
     async def health():
@@ -133,7 +138,7 @@ def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_pro
                 if not version:
                     raise HTTPException(404, 'Published lesson version not found')
             id = uid()
-            session = {'id': id, 'owner_id': current.id, 'mode': body.mode, 'source': body.source, 'state': 'capturing', 'created_at': now(), 'last_analysis_at': None, 'last_error': None, 'title': 'Untitled demonstration' if not version else version['draft']['title'], 'lesson_id': uid() if not version else body.lesson_id, 'version_id': version['id'] if version else None, 'step_id': version['draft']['steps'][0]['id'] if version else None, 'gaps': [], 'published': False, 'model': settings.general_model}
+            session = {'id': id, 'recording_required': body.recording_required and body.mode == 'teach', 'owner_id': current.id, 'mode': body.mode, 'source': body.source, 'state': 'capturing', 'created_at': now(), 'last_analysis_at': None, 'last_error': None, 'title': 'Untitled demonstration' if not version else version['draft']['title'], 'lesson_id': uid() if not version else body.lesson_id, 'version_id': version['id'] if version else None, 'step_id': version['draft']['steps'][0]['id'] if version else None, 'gaps': [], 'published': False, 'model': settings.general_model}
             await store.put('session', session)
             service.runtimes[id] = Runtime(session, service)
         return session
@@ -375,7 +380,7 @@ def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_pro
                     raise HTTPException(409, 'A phone is already connected')
                 runtime.producer = ws
                 producer_attached = True
-                await ws.send_json({'type': 'paired', 'mode': session['mode'], 'elapsed_ms': max(0, round((time.time() - __import__('datetime').datetime.fromisoformat(session['created_at']).timestamp())*1000))})
+                await ws.send_json({'type': 'paired', 'mode': session['mode'], 'recording_required': session.get('recording_required', False), 'capture_token': recordings.capture_token(id), 'elapsed_ms': max(0, round((time.time() - __import__('datetime').datetime.fromisoformat(session['created_at']).timestamp())*1000))})
                 await runtime.emit('notice', message='Phone connected. The instructor or student controls the session from the main page.')
             else:
                 runtime.sockets.add(ws)
@@ -404,6 +409,8 @@ def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_pro
                         raw = base64.b64decode(m.data, validate=True)
                         if len(raw) % 2 or len(raw) > 64000:
                             raise ValueError('Invalid PCM chunk')
+                        if runtime.session.get('recording_required') and len(runtime.audio) + len(raw) > 16000 * 2 * 40:
+                            runtime.audio.clear()  # Preview only; full audio is in the recording.
                         if len(runtime.audio) + len(raw) > 16000 * 2 * 40:
                             runtime.session['state'] = 'paused'
                             runtime.session['gaps'].append({'timestamp_ms': m.timestamp_ms, 'reason': 'Audio buffer full. Capture paused; clarify any missing narration.'})
@@ -432,24 +439,21 @@ def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_pro
                 else:
                     raise ValueError('Unknown message')
         except (HTTPException, ValueError, asyncio.TimeoutError) as exc:
+            logging.getLogger('showonce').warning('capture_socket_rejected session=%s error_type=%s', id, exc.__class__.__name__)
             try:
                 await ws.send_json({'type': 'error', 'message': str(exc.detail if isinstance(exc, HTTPException) else exc) or 'Capture connection timed out'})
                 await ws.close(code=1008)
             except Exception:
                 pass
-        except WebSocketDisconnect:
-            pass
+        except WebSocketDisconnect as exc:
+            logging.getLogger('showonce').info('capture_socket_closed session=%s code=%s', id, exc.code)
         finally:
             if runtime:
                 runtime.sockets.discard(ws)
                 if producer_attached and getattr(runtime, 'producer', None) is ws:
                     runtime.producer = None
-                if not runtime.stopped and runtime.session['state'] != 'finishing' and (producer_attached or (not producer and runtime.session['source'] != 'phone')):
-                    if runtime.session['state'] != 'quota_paused':
-                        runtime.session['state'] = 'paused'
-                    runtime.session['gaps'].append({'timestamp_ms': 0, 'reason': 'Capture connection disconnected. Confirm any actions during the interruption.'})
-                    await runtime.save()
-                    await runtime.emit('status', session=runtime.session)
+                if not runtime.stopped and runtime.session['state'] != 'finishing' and (producer_attached or (not producer and (runtime.session['source'] != 'phone' or runtime.session.get('recording_required')))):
+                    await runtime.interrupt_capture()
 
     dist = Path(__file__).resolve().parents[2] / 'frontend' / 'dist'
     if (dist / 'assets').exists():

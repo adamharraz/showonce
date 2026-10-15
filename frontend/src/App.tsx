@@ -1,3 +1,4 @@
+import { FullRecording, retryRecording, pendingRecordings } from "./recording";
 import {
   useCallback,
   useEffect,
@@ -740,7 +741,6 @@ function Live({
   const [elapsed, setElapsed] = useState(0);
   const [frameCount, setFrameCount] = useState(0);
   const socket = useRef<WebSocket | null>(null);
-  const reconnect = useRef(0);
   const unmounted = useRef(false);
   const connectRef = useRef<(s: Session) => void>(() => {});
   const finishWaiter = useRef<{
@@ -749,6 +749,10 @@ function Live({
   } | null>(null);
   const limitStopped = useRef(false);
   const captureEndedAt = useRef<number | null>(null);
+  const fullRecording = useRef<FullRecording | null>(null);
+  const [recordingStatus, setRecordingStatus] = useState("Not yet recorded");
+  const [recoverable, setRecoverable] = useState<string[]>([]);
+  useEffect(() => { void pendingRecordings().then(items => setRecoverable(items.map(item => item.session))).catch(() => {}); }, []);
   const requestFinishRef = useRef<() => Promise<void>>(async () => {});
   const send = useCallback((data: unknown) => {
     if (socket.current?.readyState === WebSocket.OPEN)
@@ -763,8 +767,7 @@ function Live({
       session?.state === "capturing" &&
       captureEndedAt.current === null,
     () => {
-      send({ type: "control", action: "pause" });
-      setNotice("Capture ended. Resume with a new camera or screen selection.");
+      socket.current?.close();
     },
   );
   const captureStopRef = useRef(capture.stop);
@@ -787,7 +790,9 @@ function Live({
             message.session.state === "finished"
           ) {
             setElapsed(Math.floor(getElapsed() / 1000));
+            fullRecording.current?.stopNow();
             captureStopRef.current();
+            void fullRecording.current?.finish().then(() => setRecordingStatus("Complete recording saved and verified")).catch(e => setError(e.message));
           }
           if (message.session.state === "finished") {
             finishWaiter.current?.resolve();
@@ -814,22 +819,21 @@ function Live({
       ws.onclose = () => {
         finishWaiter.current?.reject();
         setConnected(false);
-        if (
-          !unmounted.current &&
-          !sessionRef.current?.finished_at &&
-          reconnect.current < 1
-        ) {
-          reconnect.current++;
-          setNotice(
-            "Connection interrupted. Reconnecting once; any capture gap will be flagged.",
-          );
-          setTimeout(() => {
-            if (!unmounted.current) connectRef.current(s);
-          }, 1500);
-        } else if (!unmounted.current && !sessionRef.current?.finished_at) {
-          setNotice(
-            "Connection interrupted. Saved work is preserved. Reconnect to continue.",
-          );
+        if (!sessionRef.current?.finished_at && captureEndedAt.current === null) {
+          captureEndedAt.current = Date.now();
+          fullRecording.current?.stopNow();
+          captureStopRef.current();
+          void fullRecording.current?.finish().catch(e => { if (!unmounted.current) setError(e.message); });
+          const current = sessionRef.current;
+          if (current) {
+            const ended = { ...current, state: "finished" as const, finished_at: new Date(captureEndedAt.current).toISOString() };
+            sessionRef.current = ended;
+            if (!unmounted.current) {
+              setSession(ended);
+              setElapsed(Math.floor(getElapsed() / 1000));
+              setError("Recording terminated: capture connection interrupted. Saved evidence is preserved. Start a new session to record again.");
+            }
+          }
         }
       };
     },
@@ -859,6 +863,8 @@ function Live({
       unmounted.current = true;
       clearInterval(interval);
       clearInterval(timer);
+      fullRecording.current?.stopNow();
+      void fullRecording.current?.finish().catch(() => {});
       socket.current?.close();
     };
   }, [send]);
@@ -894,6 +900,9 @@ function Live({
           setSession(r.session);
           setElapsed(Math.floor(getElapsed() / 1000));
           setJob(r.job);
+          if (r.session.recording_required) void api<{ state: string; duration_ms?: number; audio_present?: boolean; bytes?: number }>("/sessions/" + r.session.id + "/recording").then(record => {
+            setRecordingStatus(record.state === "complete" ? `Recording verified: ${Math.round((record.duration_ms || 0)/1000)} seconds · ${record.audio_present ? "with audio" : "video only"}` : `Saving complete recording (${Math.round((record.bytes || 0)/1024/1024)} MB received)`);
+          }).catch(() => {});
           if (r.job?.state === "complete")
             navigate("/review/" + r.job.lesson_id);
         })
@@ -936,6 +945,7 @@ function Live({
         media = await acquire(source, microphone && !practice);
       const s = await api<Session>("/sessions", "POST", {
         mode: practice ? "practice" : "teach",
+        recording_required: !practice,
         source,
         ...(practice
           ? { lesson_id: practice.lesson_id, version: practice.version }
@@ -943,11 +953,18 @@ function Live({
       });
       sessionRef.current = s;
       setSession(s);
+      if (!practice && media) {
+        fullRecording.current = await FullRecording.start(s.id, media, getElapsed(), message => {
+          setError(message); socket.current?.close();
+        });
+        setRecordingStatus("Recording full video and audio; saving automatically");
+      }
       connectRef.current(s);
       if (media) capture.setStream(media);
       if (source === "phone") await pair(s);
     } catch (e) {
       media?.getTracks().forEach((t) => t.stop());
+      if (sessionRef.current) void api("/sessions/" + sessionRef.current.id + "/finish", "POST").then(() => { const current = sessionRef.current; if (current) { const ended = { ...current, state: "finished" as const, finished_at: new Date().toISOString() }; sessionRef.current = ended; setSession(ended); } }).catch(() => {});
       setError((e as Error).message);
     } finally {
       setBusy(false);
@@ -957,7 +974,6 @@ function Live({
     setError("");
     try {
       if (!connected && session) {
-        reconnect.current = 0;
         connectRef.current(session);
         await new Promise((r) => setTimeout(r, 600));
       }
@@ -978,11 +994,24 @@ function Live({
     setNotice(
       "Recording stopped. Processing the saved demonstration for review…",
     );
+    fullRecording.current?.stopNow();
     const audioFlushed = await capture.stopAndFlush();
     if (session) {
       try {
+        if (session.recording_required && !session.finished_at) {
+          const ended = await api<Session>("/sessions/" + session.id + "/finish", "POST");
+          sessionRef.current = ended; setSession(ended);
+        }
+        if (fullRecording.current) {
+          setNotice("Recording stopped. Saving and verifying the full video and audio…");
+          await fullRecording.current.finish();
+        } else if (session.recording_required && source !== "phone") {
+          const status = await api<{ state: string }>("/sessions/" + session.id + "/recording");
+          if (status.state !== "complete") await retryRecording(session.id);
+        }
         if (
           !session.finished_at &&
+          !session.recording_required &&
           connected &&
           socket.current?.readyState === WebSocket.OPEN
         ) {
@@ -1017,6 +1046,15 @@ function Live({
               "Capture flush was interrupted. Finalizing the evidence already received; review any flagged gaps.",
             );
           }
+        }
+        if (session.recording_required && source === "phone") {
+          let ready = false;
+          for (let attempt=0;attempt<60;attempt++) {
+            const status = await api<{ state: string }>("/sessions/"+session.id+"/recording");
+            if (status.state === "complete") { ready=true; break; }
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+          if (!ready) throw new Error("Phone recording is not verified yet. Keep the phone page open, then retry finalization.");
         }
         if (practice) {
           const finished = await api<Session>(
@@ -1116,6 +1154,11 @@ function Live({
           <div className="section-heading">
             <h2>Capture source</h2>
           </div>
+          {recoverable.map(savedId => <button className="button secondary" key={savedId} onClick={() => {
+            setBusy(true);
+            void retryRecording(savedId).then(() => { setRecoverable(ids => ids.filter(value => value !== savedId)); setNotice("Saved recording uploaded. Open the session to generate its lesson."); }).catch(e => setError(e.message)).finally(() => setBusy(false));
+          }}>Recover saved recording {savedId.slice(0, 8)}</button>)}
+          <p>Teaching sessions save complete video and selected microphone audio for whole-session AI analysis after Finish. Live observations are provisional.</p>
           <SourcePicker value={source} onChange={setSource} />
           <div className="setup-bottom">
             <div>
@@ -1236,7 +1279,7 @@ function Live({
                   <ScanLine size={13} />{" "}
                   {source === "screen" ? "Screen" : "Camera"} capture
                 </span>
-                <span>1 frame / second</span>
+                <span>{session.recording_required ? "Full recording + preview frames" : "1 frame / second"}</span>
               </div>
             </div>
             <div className="capture-controls">
@@ -1250,7 +1293,8 @@ function Live({
                     {session.state === "capturing" ? (
                       <button
                         className="button secondary"
-                        disabled={busy}
+                        disabled={busy || session.recording_required}
+                        title={session.recording_required ? "Full-session recording is continuous. Use Finish to stop." : undefined}
                         onClick={() => void pause()}
                       >
                         <Pause size={15} /> Pause
@@ -1289,7 +1333,7 @@ function Live({
               </div>
             </div>
             <div className="capture-meta">
-              <span>{frameCount} frames received in this view</span>
+              <span>{session.recording_required ? recordingStatus : `${frameCount} frames received in this view`}</span>
               <span>
                 Last analysis:{" "}
                 {session.last_analysis_at
@@ -2196,7 +2240,7 @@ function Setup({ config }: { config: Config }) {
             </div>
           ))}
           <p className="fine">
-            Lesson generation and checkpoint checks use Gemini 3.1 Flash-Lite.
+            Whole-recording lessons use Gemini 3.8 Flash. Provisional observations and checkpoint checks use Gemini 3.1 Flash-Lite.
             Live Coach uses {config.coach_model} for camera and spoken
             conversation. There is no paid or alternate-model fallback.
           </p>
@@ -2290,6 +2334,7 @@ function PhoneCapture({ id }: { id: string }) {
     new URLSearchParams(location.search).get("mic") !== "0",
   );
   const socket = useRef<WebSocket | null>(null);
+  const fullRecording = useRef<FullRecording | null>(null);
   const started = useRef(Date.now());
   const offset = useRef(0);
   const send = useCallback((data: unknown) => {
@@ -2300,7 +2345,7 @@ function PhoneCapture({ id }: { id: string }) {
     send,
     () => Math.max(0, Date.now() - started.current + offset.current),
     paired && state === "capturing",
-    () => setError("Camera stopped. Request a new pairing code to reconnect."),
+    () => socket.current?.close(),
   );
   async function start() {
     try {
@@ -2312,26 +2357,35 @@ function PhoneCapture({ id }: { id: string }) {
         ws.send(
           JSON.stringify({ type: "authenticate", ticket: ticket.current }),
         );
-      ws.onmessage = (e) => {
+      ws.onmessage = async (e) => {
         const m = JSON.parse(e.data);
         if (m.type === "paired") {
           started.current = Date.now();
           offset.current = m.elapsed_ms;
           setMode(m.mode);
+          if (m.recording_required) {
+            try { fullRecording.current = await FullRecording.start(id, media, m.elapsed_ms, message => { setError(message); ws.close(); }, m.capture_token); }
+            catch (error) { setError((error as Error).message); ws.close(); return; }
+          }
           setPaired(true);
           history.replaceState({}, "", location.pathname);
         }
         if (m.type === "pong" || m.type === "capture_state") {
           setState(m.state);
-          if (m.state === "finishing" || m.state === "finished") capture.stop();
+          if (m.state === "finishing" || m.state === "finished") {
+            fullRecording.current?.stopNow(); capture.stop();
+            void fullRecording.current?.finish().catch(e => setError(e.message));
+          }
         }
         if (m.type === "error") setError(m.message);
       };
       ws.onclose = () => {
         setPaired(false);
+        fullRecording.current?.stopNow();
         capture.stop();
+        void fullRecording.current?.finish().catch(e => setError(e.message));
         setError(
-          "Phone disconnected. Generate a new code on the main page to reconnect.",
+          "Recording terminated because the phone disconnected. Start a new session to record again.",
         );
       };
     } catch (e) {
@@ -2342,6 +2396,8 @@ function PhoneCapture({ id }: { id: string }) {
     const interval = setInterval(() => send({ type: "ping" }), 5000);
     return () => {
       clearInterval(interval);
+      fullRecording.current?.stopNow();
+      void fullRecording.current?.finish().catch(() => {});
       socket.current?.close();
     };
   }, [send]);

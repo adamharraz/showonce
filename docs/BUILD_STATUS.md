@@ -1,5 +1,7 @@
 # Implementation status
 
+15 October: New full-recording teaching sessions use Gemini 3.8 Flash for final video/audio analysis; 3.1 Flash-Lite remains the preview and legacy model. Ordered recording storage, media verification and deferred final analysis are implemented. A real synthetic-video probe returned model_busy; no successful live 3.8 quality claim is made. See README full-session recording section.
+
 14 October model update: the owner selected `gemini-3.1-flash-lite` for all instructor observation, tutorial generation, clarification and student assessment. The lesson adapter permits only this stable identifier, including retries of saved evidence; `gemini-3.5-flash-lite` is no longer an allowed lesson model. Live Coach continues to use `gemini-3.8-live`. Older model identifiers below describe historical runs. No paid billing or automatic model fallback is enabled.
 
 3.1 access check: one real request using a synthetic grey screenshot passed the existing Interactions structured-output adapter and Pydantic validation. It took 25.247 seconds and reported 1,489 total tokens. The private report is in ignored `artifacts/diagnostics/gemini-3.1-flash-lite-access-20261014.json`. This confirms access for this account and request, without establishing ESP32 lesson quality, narration handling, free quota limits or the 15-second latency target. No saved user screenshots were uploaded for this check.

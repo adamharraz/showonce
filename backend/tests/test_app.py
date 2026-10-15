@@ -236,7 +236,8 @@ def test_quota_blocks_resume_finalization_and_further_calls(client):
         ws.send_json({'type':'control','action':'resume'})
         while ws.receive_json()['type']!='error': pass
     state=client.get('/api/sessions/'+session['id'],headers=headers).json()
-    assert state['session']['state']=='quota_paused'
+    assert state['session']['state']=='finished'
+    assert state['session']['finished_at']
     assert client.post('/api/sessions/'+session['id']+'/finalize',headers=headers).status_code==409
     assert calls==[1]
     another=client.post('/api/sessions',headers=headers,json={'mode':'teach','source':'camera'}).json()
@@ -478,3 +479,50 @@ def test_retention_keeps_published_references_only(client):
     assert client.portal.call(store.get,'frame',reference['id']) is not None
     assert client.portal.call(store.get,'frame','unused-teaching') is None
     assert client.portal.call(store.get,'frame','old-practice') is None
+
+@pytest.mark.parametrize('source', ['camera', 'screen', 'phone'])
+def test_capture_disconnect_terminates_recording(client, source):
+    headers, token = login(client)
+    session = client.post('/api/sessions', headers=headers, json={'mode': 'teach', 'source': source}).json()
+    hello = {'type': 'authenticate', 'token': token}
+    if source == 'phone':
+        ticket = client.post('/api/sessions/'+session['id']+'/capture-ticket', headers=headers).json()['ticket']
+        hello = {'type': 'authenticate', 'ticket': ticket}
+    with client.websocket_connect('/api/sessions/'+session['id']+'/stream', headers={'origin': 'http://localhost:8000'}) as ws:
+        ws.send_json(hello)
+        ws.receive_json()
+        ws.send_json({'type': 'frame', 'id': 'saved-before-disconnect', 'timestamp_ms': 1000, 'data': frame_data()})
+        if source != 'phone':
+            assert ws.receive_json()['type'] == 'frame_saved'
+        else:
+            time.sleep(.05)
+    for _ in range(50):
+        state = client.get('/api/sessions/'+session['id'], headers=headers).json()['session']
+        if state.get('finished_at'):
+            break
+        time.sleep(.02)
+    assert state['state'] == 'finished'
+    assert state['finished_at']
+    assert state['last_error']['code'] == 'capture_interrupted'
+    assert client.portal.call(client.app.state.store.get, 'frame', session['id']+'-saved-before-disconnect')
+    with client.websocket_connect('/api/sessions/'+session['id']+'/stream', headers={'origin': 'http://localhost:8000'}) as ws:
+        ws.send_json({'type': 'authenticate', 'token': token})
+        assert ws.receive_json()['type'] == 'error'
+
+
+def test_buffered_frames_do_not_disconnect_capture(client):
+    headers, token = login(client)
+    session = client.post('/api/sessions', headers=headers, json={'mode': 'teach', 'source': 'camera'}).json()
+    with client.websocket_connect('/api/sessions/'+session['id']+'/stream', headers={'origin': 'http://localhost:8000'}) as ws:
+        ws.send_json({'type': 'authenticate', 'token': token})
+        ws.receive_json()
+        # Captured one second apart, delivered together after a processing stall.
+        for index in range(3):
+            ws.send_json({'type': 'frame', 'id': f'buffered-{index}', 'timestamp_ms': (index+1)*1000, 'data': frame_data()})
+            assert ws.receive_json()['type'] == 'frame_saved'
+        ws.send_json({'type': 'frame', 'id': 'extra', 'timestamp_ms': 3100, 'data': frame_data()})
+        assert ws.receive_json()['type'] == 'notice'
+        ws.send_json({'type': 'frame', 'id': 'next', 'timestamp_ms': 4000, 'data': frame_data()})
+        assert ws.receive_json()['type'] == 'frame_saved'
+        ws.send_json({'type': 'ping'})
+        assert ws.receive_json()['state'] == 'capturing'

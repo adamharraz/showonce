@@ -5,6 +5,183 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/sessions/{id}/recording/start": {
+      "post": {
+        "summary": "Start",
+        "operationId": "start_api_sessions__id__recording_start_post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordingStart"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{id}/recording/chunks/{sequence}": {
+      "post": {
+        "summary": "Chunk",
+        "operationId": "chunk_api_sessions__id__recording_chunks__sequence__post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          },
+          {
+            "name": "sequence",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Sequence"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{id}/recording/complete": {
+      "post": {
+        "summary": "Complete",
+        "operationId": "complete_api_sessions__id__recording_complete_post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordingEnd"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{id}/recording": {
+      "get": {
+        "summary": "Status",
+        "operationId": "status_api_sessions__id__recording_get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/coaching/sessions": {
       "get": {
         "summary": "History",
@@ -1272,6 +1449,11 @@
       },
       "CreateSession": {
         "properties": {
+          "recording_required": {
+            "type": "boolean",
+            "title": "Recording Required",
+            "default": false
+          },
           "mode": {
             "type": "string",
             "enum": [
@@ -1941,6 +2123,53 @@
         "title": "Question",
         "type": "object"
       },
+      "RecordingEnd": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "maximum": 400.0,
+            "minimum": 1.0,
+            "title": "Count"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "maximum": 310000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Duration Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "duration_ms"
+        ],
+        "title": "RecordingEnd"
+      },
+      "RecordingStart": {
+        "properties": {
+          "mime": {
+            "type": "string",
+            "title": "Mime"
+          },
+          "audio": {
+            "type": "boolean",
+            "title": "Audio"
+          },
+          "start_ms": {
+            "type": "integer",
+            "maximum": 300000.0,
+            "minimum": 0.0,
+            "title": "Start Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mime",
+          "audio",
+          "start_ms"
+        ],
+        "title": "RecordingStart"
+      },
       "ScenePart": {
         "properties": {
           "id": {
@@ -2103,6 +2332,11 @@
       },
       "SessionRecord": {
         "properties": {
+          "recording_required": {
+            "type": "boolean",
+            "title": "Recording Required",
+            "default": false
+          },
           "id": {
             "type": "string",
             "title": "Id"

@@ -146,3 +146,22 @@ async def test_every_ai_role_uses_flash_lite(operation, tmp_path):
             assert ai.actual_model == MODEL
         finally:
             await ai.client.aio.aclose()
+
+
+@pytest.mark.asyncio
+async def test_full_recording_uses_flash_video_and_deletes_remote_file(tmp_path):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from app.config import FINAL_MODEL
+    ai = Gemini(Settings(data_dir=tmp_path, gemini_key='offline-test-key', free_tier_confirmed=True))
+    await ai.client.aio.aclose()
+    payload = {'title': 'Whole session', 'steps': [{'title': 'Display blue', 'instruction': 'Display blue.', 'expected_outcome': 'Blue visible', 'timestamp_ms': 1000}], 'questions': [{'text': 'Which value?', 'answer': 'Invented answer'}]}
+    interactions = SimpleNamespace(sdk_configuration=SimpleNamespace(retry_config=None), create=AsyncMock(return_value=SimpleNamespace(output_text=json.dumps(payload), usage=None)))
+    files = SimpleNamespace(upload=AsyncMock(return_value=SimpleNamespace(state=SimpleNamespace(name='ACTIVE'), uri='test://video', name='files/test')), delete=AsyncMock())
+    ai.client = SimpleNamespace(aio=SimpleNamespace(files=files, interactions=interactions))
+    result = await ai.finalize_video(tmp_path/'fixture.webm', {'duration_ms':2000,'audio_present':True}, [])
+    call = interactions.create.call_args.kwargs
+    assert call['model'] == FINAL_MODEL
+    assert call['input'][0] == {'type':'video','uri':'test://video','mime_type':'video/webm'}
+    assert result.questions[0].answer == ''
+    files.delete.assert_awaited_once_with(name='files/test')
