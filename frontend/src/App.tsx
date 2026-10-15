@@ -68,6 +68,9 @@ import { unresolved, reorder } from "./review";
 import LiveCoach from "./LiveCoach";
 import EntryConsent from "./EntryConsent";
 import Homepage from "./Homepage";
+import EvidencePage from "./EvidencePage";
+import AboutPage from "./AboutPage";
+import { topics } from "./PublicNavigation";
 
 function usePath() {
   const [path, setPath] = useState(location.pathname);
@@ -2464,6 +2467,7 @@ export default function App() {
     () => sessionStorage.getItem("showonce-entry-consent-v1") === "accepted",
   );
   const [path, navigateRaw] = usePath();
+  const publicTopic = topics.find(topic => path === `/about/${topic.slug}`);
   const navigate = useCallback((p: string) => navigateRaw(p), [navigateRaw]);
   const [config, setConfig] = useState<Config | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -2481,7 +2485,7 @@ export default function App() {
     menuWasOpen.current = mobileMenu;
   }, [mobileMenu]);
   useEffect(() => {
-    const title = path === "/welcome" || (path === "/" && !user)
+    const title = publicTopic ? publicTopic.label : path === "/welcome" || (path === "/" && !user)
       ? "Learn by doing"
       : path.startsWith("/coach")
       ? "Get live help"
@@ -2506,7 +2510,14 @@ export default function App() {
     document
       .querySelector<HTMLElement>("#main-content")
       ?.focus({ preventScroll: true });
-    window.scrollTo(0, 0);
+    let active = true;
+    if (location.hash) {
+      const anchor = location.hash.slice(1);
+      void document.fonts.ready.then(() => requestAnimationFrame(() => {
+        if (active) document.getElementById(anchor)?.scrollIntoView();
+      }));
+    } else window.scrollTo(0, 0);
+    return () => { active = false; };
   }, [path, user?.id, config?.demo_mode]);
   useEffect(() => {
     const close = (event: KeyboardEvent) => {
@@ -2534,6 +2545,8 @@ export default function App() {
       dispatchEvent(new PopStateEvent("popstate"));
     }
   }, [path, user, entryConsent, navigateRaw]);
+  if (path === "/about/evidence") return <EvidencePage />;
+  if (publicTopic && publicTopic.slug !== "evidence") return <AboutPage topic={publicTopic.slug} />;
   if (path === "/welcome" || (path === "/" && !user)) return <Homepage />;
   if (!config)
     return (
