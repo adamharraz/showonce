@@ -46,7 +46,7 @@ def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_pro
 
     app = FastAPI(title='ShowOnce', version='0.1.0', lifespan=lifespan)
     app.state.store, app.state.auth, app.state.service = store, auth, service
-    app.add_middleware(CORSMiddleware, allow_origins=list({settings.origin, 'http://localhost:5173', 'http://127.0.0.1:5173'}), allow_methods=['GET', 'POST', 'PATCH'], allow_headers=['Authorization', 'Content-Type'])
+    app.add_middleware(CORSMiddleware, allow_origins=list({settings.origin, 'http://localhost:5173', 'http://127.0.0.1:5173'}), allow_methods=['GET', 'POST', 'PATCH', 'DELETE'], allow_headers=['Authorization', 'Content-Type'])
 
     async def user(request: Request):
         header = request.headers.get('authorization', '')
@@ -300,6 +300,43 @@ def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_pro
             await store.put('session', session)
         await service.cleanup()
         return version
+
+    @app.delete('/api/lessons/{id}')
+    async def delete_lesson(id: str, current=Depends(user)):
+        if current.role != 'instructor':
+            raise HTTPException(403, 'Only the instructor who owns a lesson can delete it')
+        async with service.session_lock, service.enqueue_lock, recordings.lock:
+            lesson = await owned('lesson', id, current)
+            source_id = lesson['session_id']
+            if service.ai_lock.locked() or coach.active:
+                raise HTTPException(409, 'Wait for AI processing or live coaching to finish before deleting a lesson')
+            if any(not r.stopped and r.session.get('lesson_id') == id for r in service.runtimes.values()):
+                raise HTTPException(409, 'Finish the active recording or practice before deleting this lesson')
+            job = await store.get('job', 'job-' + source_id)
+            if job and job['state'] in ('queued', 'running'):
+                raise HTTPException(409, 'Wait for lesson generation to finish before deleting it')
+            # Remove only the lesson's instructor source media. Historical student
+            # sessions and coaching conversations are separate user records.
+            recording = await store.get('recording', 'recording-' + source_id)
+            if recording:
+                for chunk in recording['chunks']:
+                    await store.delete_blob(chunk['key'])
+                await store.delete('recording', recording['id'])
+            for frame in await store.all('frame'):
+                if frame.get('session_id') == source_id:
+                    await store.delete_blob(frame['key'])
+                    await store.delete('frame', frame['id'])
+            for kind in ('observation', 'assessment', 'metric', 'job'):
+                for record in await store.all(kind):
+                    if record.get('session_id') == source_id:
+                        await store.delete(kind, record['id'])
+            for version in await store.all('version'):
+                if version.get('lesson_id') == id:
+                    await store.delete('version', version['id'])
+            await store.delete('session', source_id)
+            await store.delete('lesson', id)
+            service.runtimes.pop(source_id, None)
+        return {'deleted': True, 'id': id}
 
     @app.get('/api/lessons/{id}/versions/{version}', response_model=VersionRecord)
     async def get_version(id: str, version: int, current=Depends(user)):

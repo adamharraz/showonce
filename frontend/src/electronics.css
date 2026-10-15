@@ -570,3 +570,9 @@ code {
   .learning-flow { grid-template-columns: 1fr; gap: 14px; }
   .learning-flow li { border-top: 0; border-left: 4px solid #1473e6; padding: 0 0 0 14px; }
 }
+
+.lesson-card-shell { display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; }
+.lesson-card-shell > .lesson-card { flex: 1; }
+.lesson-delete { margin: 0.35rem 0 0.8rem; }
+.lesson-delete button { color: #a22d33; }
+.lesson-delete [role="alert"] { color: #a22d33; font-size: 0.9rem; }

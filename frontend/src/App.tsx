@@ -341,6 +341,28 @@ function Logo() {
   );
 }
 
+function DeleteLessonButton({ id, title, onDeleted, disabled = false }: {
+  id: string; title: string; onDeleted: () => void; disabled?: boolean;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function remove() {
+    if (!window.confirm(`Permanently delete "${title}"? This removes its draft, published versions, instructor recording and screenshots. Students will no longer be able to open the lesson. This cannot be undone.`)) return;
+    setBusy(true); setError("");
+    try {
+      await api("/lessons/" + id, "DELETE");
+      onDeleted();
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  }
+  return <div className="lesson-delete">
+    <button className="button secondary" disabled={disabled || busy} onClick={() => void remove()} aria-label={`Delete lesson: ${title}`}>
+      <Trash2 size={15} /> {busy ? "Deleting…" : "Delete lesson"}
+    </button>
+    {error && <p role="alert">{error}</p>}
+  </div>;
+}
+
 function Library({
   user,
   navigate,
@@ -556,6 +578,7 @@ function Library({
           ) : (
             <div className="lesson-grid">
               {visibleLessons.map((l) => (
+                <div className="lesson-card-shell" key={l.id}>
                 <RoutedLink
                   className="lesson-card"
                   key={l.id}
@@ -597,6 +620,8 @@ function Library({
                     <ArrowRight size={17} />
                   </div>
                 </RoutedLink>
+                {l.owned && user.role === "instructor" && <DeleteLessonButton id={l.id} title={l.title} onDeleted={() => void load()} />}
+                </div>
               ))}
             </div>
           )}
@@ -1658,6 +1683,7 @@ function Review({
       </div>
       {error && <Banner tone="error">{error}</Banner>}
       {notice && <Banner>{notice}</Banner>}
+      <DeleteLessonButton id={id} title={draft.title} disabled={busy} onDeleted={() => navigate("/")} />
       <fieldset className="review-grid" disabled={busy}>
         <div>
           <section className="panel review-intro">
@@ -2055,6 +2081,7 @@ function LessonView({
         </span>
       </div>
       <div className="lesson-toolbar">
+        {version.owner_id === user.id && <DeleteLessonButton id={id} title={d.title} onDeleted={() => navigate("/")} />}
         <button
           className="button secondary"
           onClick={() => navigate(`/coach/${id}/${version.version}`)}
