@@ -11,6 +11,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request, WebSocket, WebSock
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from .reference import ReferenceFiles
 from .config import Settings, FINAL_MODEL
 from .recordings import Recordings
 from .storage import Store
@@ -493,6 +494,9 @@ def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_pro
                     await runtime.interrupt_capture()
 
     dist = Path(__file__).resolve().parents[2] / 'frontend' / 'dist'
+    if (dist / 'arduino-reference').exists():
+        app.mount('/arduino-reference', ReferenceFiles(directory=dist / 'arduino-reference', html=True), name='arduino-reference')
+
     if (dist / 'assets').exists():
         app.mount('/assets', StaticFiles(directory=dist / 'assets'), name='assets')
 

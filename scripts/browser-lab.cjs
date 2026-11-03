@@ -17,8 +17,10 @@ const base = process.env.BASE_URL || "http://127.0.0.1:5173";
     viewport: { width: 1440, height: 1000 },
   });
   await context.addInitScript(() => {
-    sessionStorage.setItem("showonce-token", "test-only");
-    sessionStorage.setItem("showonce-entry-consent-v1", "accepted");
+    try {
+      sessionStorage.setItem("showonce-token", "test-only");
+      sessionStorage.setItem("showonce-entry-consent-v1", "accepted");
+    } catch {}
   });
   const lesson = {
     id: "led-test",
@@ -62,11 +64,83 @@ const base = process.env.BASE_URL || "http://127.0.0.1:5173";
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  page.on("console", (m) => {
+    if (m.type() === "error") console.error(m.text());
+  });
   await page.goto(`${base}/lesson/led-test`);
   await page.getByRole("button", { name: "Explore in 3D" }).click();
   await page
     .getByRole("heading", { name: "Electronics lab", exact: true })
     .waitFor();
+  const course = page.frameLocator(
+    'iframe[title="Arduino interactive course and simulator"]',
+  );
+  await course.locator("html:not(.is-loading)").waitFor({ timeout: 60000 });
+  await course.locator("#board-canvas").waitFor();
+  assert.equal(await course.locator("#lesson-list > *").count(), 16);
+  await course.locator('li[data-id="blink"]').click();
+  await course.getByRole("button", { name: "Run sketch", exact: true }).click();
+  await course
+    .locator('.code-card[data-state="running"]')
+    .waitFor({ timeout: 30000 });
+  await course.locator(".btn-run").click();
+  await course.locator('.code-card[data-state="idle"]').waitFor();
+  await course.getByRole("tab", { name: "Pinout", exact: true }).click();
+  await course.locator('[data-view="reset"]').click();
+  const child = page
+    .frames()
+    .find((f) => f.url().includes("/arduino-reference/"));
+  assert.equal(
+    await child.evaluate(() => {
+      try {
+        return !!parent.document;
+      } catch {
+        return false;
+      }
+    }),
+    false,
+    "reference cannot access parent",
+  );
+  assert.equal(
+    await child.evaluate(() => {
+      try {
+        return !!sessionStorage.getItem("showonce-token");
+      } catch {
+        return false;
+      }
+    }),
+    false,
+    "reference cannot read login token",
+  );
+  await page.evaluate(() => {
+    document.activeElement?.blur?.();
+    window.scrollTo(0, 0);
+  });
+  await page.waitForTimeout(200);
+  await page.screenshot({
+    path: "artifacts/ui/course-desktop.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > innerWidth,
+    ),
+    false,
+  );
+  await page.evaluate(() => {
+    document.activeElement?.blur?.();
+    window.scrollTo(0, 0);
+  });
+  await page.waitForTimeout(200);
+  await page.screenshot({
+    path: "artifacts/ui/course-mobile.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page
+    .getByRole("button", { name: "Circuit basics", exact: true })
+    .click();
   await page.locator("canvas").waitFor();
   await page.getByRole("button", { name: "Resistor", exact: true }).click();
   await page.getByRole("heading", { name: "Resistor", exact: true }).waitFor();
@@ -75,6 +149,11 @@ const base = process.env.BASE_URL || "http://127.0.0.1:5173";
   await page.getByRole("button", { name: "Play blink preview" }).click();
   await page.getByRole("button", { name: "Stop preview" }).waitFor();
   await page.getByRole("button", { name: "Reset view" }).click();
+  await page.evaluate(() => {
+    document.activeElement?.blur?.();
+    window.scrollTo(0, 0);
+  });
+  await page.waitForTimeout(200);
   await page.screenshot({
     path: "artifacts/ui/lab-desktop.png",
     fullPage: true,
@@ -87,6 +166,11 @@ const base = process.env.BASE_URL || "http://127.0.0.1:5173";
     false,
     "mobile overflow",
   );
+  await page.evaluate(() => {
+    document.activeElement?.blur?.();
+    window.scrollTo(0, 0);
+  });
+  await page.waitForTimeout(200);
   await page.screenshot({
     path: "artifacts/ui/lab-mobile.png",
     fullPage: true,
@@ -108,11 +192,14 @@ const base = process.env.BASE_URL || "http://127.0.0.1:5173";
   });
   await fallback.goto(`${base}/lab/electronics`);
   await fallback
+    .getByRole("button", { name: "Circuit basics", exact: true })
+    .click();
+  await fallback
     .getByRole("heading", { name: "Use the circuit path below" })
     .waitFor();
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: lesson link, component selection, stages, animation controls, reset, mobile overflow, return, deep link and WebGL fallback; no page errors.",
+    "PASS: 16-lesson reference loads; blink run/stop, pinout, reset, opaque-origin isolation, desktop/mobile, basics, lesson return and fallback; no page errors.",
   );
   await browser.close();
 })().catch((e) => {

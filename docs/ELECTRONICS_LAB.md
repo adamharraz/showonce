@@ -1,15 +1,34 @@
 # Electronics lab
 
-The native `/lab/electronics` page is an original, limited recreation of useful learning interactions observed on https://learn-arduino-red.vercel.app/. No code, 3D models, lesson text or branding from that site is bundled. Its publicly served HTML and entry bundle were inspected; no source map or reuse licence was found in that entry bundle. This is not a recovered copy of the original project or its 16-lesson course.
+`/lab/electronics` now offers two reference views:
 
-The first module uses ShowOnce's existing original procedural ESP32, resistor and LED models. It supports orbit/zoom/reset, keyboard-accessible component selection, four guided stages, an illustrative blink animation, and a text alternative when WebGL is unavailable. The circuit connectors depict a conceptual series path rather than exact pins or breadboard holes. It is not an electrical or firmware simulator.
+- **Arduino course:** the user-supplied compiled Learn Arduino deployment, with its 16 lesson entries, procedural 3D scenes, component panels and preset simulator UI.
+- **Circuit basics:** ShowOnce's original conceptual LED module using its original procedural ESP32, resistor and LED models. It is an illustration, not an electrical/firmware simulator or a physical pin map.
 
-Electronics-related published lessons offer `Explore in 3D`. The lab returns to that lesson; otherwise it returns to the lesson library. It never marks a lesson checkpoint complete and does not send lab illustrations as learner evidence. Existing imported ESP32 assets and their required credits elsewhere in the application are unchanged.
+Published electronics-related lessons offer `Explore in 3D`. The lab returns to that lesson. These reference activities never approve ShowOnce checkpoints or become learner evidence. Arduino Uno references must not be treated as an ESP32 pin/layout guide.
 
-Next scope: instructor-approved board and connection metadata, precise pin/row mapping, additional tested circuits, and a real circuit/firmware simulation engine if needed. None of these are claimed by this module.
+## Snapshot provenance and adaptation
+
+The uploaded archive SHA-256 is `70d6de0ef714def3b43c8c4bddddc3285831bc3df2f98a5178fd4ecbfabc881d`.
+All 70 files match the supplied manifest sizes and SHA-256 hashes. Originals are preserved under `frontend/vendor/learn-arduino`; original attribution and bundled notices remain there. The snapshot is a compiled public deployment captured 23 October 2026, not the development repository. It contains no project-wide reuse licence, and its upload does not establish distribution rights.
+
+`frontend/scripts/prepare-arduino.mjs` verifies originals and generates the adapted `/arduino-reference/` files during `npm run dev` and `npm run build`. Generated files are ignored in Git. The existing Docker frontend stage copies the vendor files and script with the frontend directory, so the same build path applies there.
+
+Changes to the runtime copy:
+
+- Root-relative assets and language navigation are scoped under `/arduino-reference/`.
+- Sidebar credits are visually hidden and the renderer's `floorCredit` option is disabled. The author and source are credited in the accessible host **About this reference** section. No author ownership claim is made by ShowOnce.
+- A readiness-only message lets ShowOnce stop displaying its loading indicator.
+- The actual Arduino scenes/lesson text/preset simulator logic remain supplied third-party code; they have not been rewritten as ShowOnce's own AI functionality.
+
+## Isolation
+
+The iframe permits scripts but not same-origin access, popups, camera or microphone. FastAPI and Vite serve the reference modules with anonymous CORS, while the reference document's CSP blocks network connections and form submission and also enforces the sandbox. No tokens, media, assessments or progress are passed into the frame. Its own original local-storage calls fail safely in the opaque origin, so progress does not survive reloading the reference. This limitation is visible in the interface.
 
 ## Verification
 
-Frontend tests (13) and production build passed. Browser checks with test-only API fixtures passed lesson-to-lab navigation, direct links, component selection, guided stages, blink controls, view reset, lesson return, mobile overflow and WebGL fallback. Desktop (1440px) and mobile (390px) screenshots were visually reviewed. These checks do not establish electrical or AI accuracy.
+The production build and frontend tests passed. Browser fixtures exercise the real static reference but replace ShowOnce API responses; they do not establish AI or physical circuit accuracy. Checks cover lesson-to-lab navigation, all 16 lesson entries appearing, sample blink run/stop, pinout, reset, desktop/mobile layout, denial of parent-document/session-token access, the original Circuit basics interactions, return navigation and WebGL fallback. Backend tests cover reference response policies and missing assets.
 
-Run Vite, then `PLAYWRIGHT_MODULE=/path/to/playwright CHROME_PATH=/path/to/chrome node scripts/browser-lab.cjs`. Optional `BASE_URL` selects another local server. Screenshots are written to ignored `artifacts/ui`.
+Run the production app or Vite, then `BASE_URL=http://127.0.0.1:8000 PLAYWRIGHT_MODULE=/path/to/playwright CHROME_PATH=/path/to/chrome node scripts/browser-lab.cjs`. Screenshots go to ignored `artifacts/ui`.
+
+No hosting/deployment or validated electrical simulation claim is made. Do not represent the third-party course as AI-generated lessons or as evidence that learner assessment works.
