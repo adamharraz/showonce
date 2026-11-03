@@ -1,3 +1,4 @@
+import ElectronicsLab from "./ElectronicsLab";
 import { FullRecording, retryRecording, pendingRecordings } from "./recording";
 import {
   useCallback,
@@ -2081,6 +2082,10 @@ function LessonView({
         </span>
       </div>
       <div className="lesson-toolbar">
+        {/\b(esp32|arduino|breadboard|resistor|circuit|led)\b/i.test([d.title, ...d.materials].join(" ")) && (
+          <button className="button secondary" onClick={() => navigate(`/lab/electronics?lesson=${encodeURIComponent(id)}`)}><Layers3 size={16} /> Explore in 3D</button>
+        )}
+
         {version.owner_id === user.id && <DeleteLessonButton id={id} title={d.title} onDeleted={() => navigate("/")} />}
         <button
           className="button secondary"
@@ -2514,7 +2519,9 @@ export default function App() {
   useEffect(() => {
     const title = publicTopic ? publicTopic.label : path === "/welcome" || (path === "/" && !user)
       ? "Learn by doing"
-      : path.startsWith("/coach")
+      : path.split("?")[0] === "/lab/electronics"
+      ? "Electronics lab"
+    : path.startsWith("/coach")
       ? "Get live help"
       : path.startsWith("/capture/")
         ? "Phone camera"
@@ -2601,6 +2608,8 @@ export default function App() {
   }} />;
   const section = path.startsWith("/studio")
     ? "studio"
+    : path.split("?")[0] === "/lab/electronics"
+      ? "electronics"
     : path.startsWith("/coach")
       ? "coach"
       : path === "/settings"
@@ -2642,6 +2651,11 @@ export default function App() {
           >
             <Mic size={18} /> Get live help
           </button>
+          <button
+            aria-current={section === "electronics" ? "page" : undefined}
+            className={section === "electronics" ? "active" : ""}
+            onClick={() => go("/lab/electronics")}
+          ><Layers3 size={18} /> Electronics lab</button>
           <button
             aria-current={section === "settings" ? "page" : undefined}
             className={section === "settings" ? "active" : ""}
@@ -2730,7 +2744,9 @@ export default function App() {
               restarts.
             </Banner>
           )}
-          {path.startsWith("/coach") ? (
+          {path.split("?")[0] === "/lab/electronics" ? (
+            <ElectronicsLab key={location.search} navigate={navigate} />
+          ) : path.startsWith("/coach") ? (
             <LiveCoach
               consent={entryConsent}
               key={path}

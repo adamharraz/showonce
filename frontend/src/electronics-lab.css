@@ -1,0 +1,156 @@
+.electronics-lab {
+  max-width: 1280px;
+  margin: auto;
+}
+.electronics-lab > .text-button {
+  margin-bottom: 18px;
+}
+.lab-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+  gap: 28px;
+  align-items: start;
+}
+.lab-workbench {
+  min-width: 0;
+}
+.lab-scene-wrap {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.lab-scene {
+  width: 100%;
+  height: clamp(290px, 45vw, 480px);
+}
+.lab-scene canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+.lab-scene-fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  padding: 32px;
+  background: #edf2ed;
+}
+.lab-view-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  padding: 8px 0;
+  color: #52635a;
+}
+.lab-caption {
+  font-size: 12px;
+  color: #52635a;
+  margin: 0 0 22px;
+}
+.lab-parts {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.lab-parts button {
+  border: 1px solid #c8d3cb;
+  border-radius: 6px;
+  padding: 10px 14px;
+  background: transparent;
+  color: #334d40;
+  min-height: 44px;
+}
+.lab-parts button[aria-pressed="true"] {
+  background: #dfece4;
+  border-color: #648674;
+}
+.lab-parts button:hover {
+  background: #e6eee8;
+}
+.lab-part-detail {
+  padding: 22px 0;
+}
+.lab-part-detail h2 {
+  font-size: 20px;
+}
+.lab-guide {
+  padding: 24px;
+}
+.lab-guide p {
+  font-size: 14px;
+}
+.lab-guide .fine {
+  font-size: 12px;
+}
+.lab-stages {
+  list-style: none;
+  margin: 24px 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.lab-stages button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  padding: 10px 8px;
+  background: transparent;
+  border: 0;
+  width: 100%;
+  color: #52635a;
+  border-radius: 6px;
+  min-height: 44px;
+}
+.lab-stages span {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid #c7d2ca;
+  border-radius: 5px;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.lab-stages button[aria-current="step"] {
+  background: #e1ece5;
+  color: #195648;
+  font-weight: 650;
+}
+.lab-actions {
+  padding: 12px 0;
+}
+.lab-guide details {
+  margin: 20px 0;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+.lab-guide summary {
+  cursor: pointer;
+  padding: 8px 0;
+}
+.lab-guide > .button {
+  width: 100%;
+}
+@media (max-width: 900px) {
+  .lab-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  .lab-scene {
+    height: 340px;
+  }
+}
+@media (max-width: 420px) {
+  .lab-view-controls {
+    align-items: start;
+  }
+  .lab-parts button {
+    padding: 10px;
+  }
+}
