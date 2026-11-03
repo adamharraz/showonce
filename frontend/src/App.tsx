@@ -1,3 +1,4 @@
+import { referenceTopicForLesson } from "./arduino-reference";
 import ElectronicsLab from "./ElectronicsLab";
 import { FullRecording, retryRecording, pendingRecordings } from "./recording";
 import {
@@ -2083,7 +2084,7 @@ function LessonView({
       </div>
       <div className="lesson-toolbar">
         {/\b(esp32|arduino|breadboard|resistor|circuit|led)\b/i.test([d.title, ...d.materials].join(" ")) && (
-          <button className="button secondary" onClick={() => navigate(`/lab/electronics?lesson=${encodeURIComponent(id)}`)}><Layers3 size={16} /> Explore in 3D</button>
+          <button className="button secondary" onClick={() => navigate(`/lab/electronics?lesson=${encodeURIComponent(id)}&topic=${referenceTopicForLesson([d.title,...d.materials].join(" "))}`)}><Layers3 size={16} /> Explore in 3D</button>
         )}
 
         {version.owner_id === user.id && <DeleteLessonButton id={id} title={d.title} onDeleted={() => navigate("/")} />}
@@ -2593,7 +2594,7 @@ export default function App() {
   if (path.startsWith("/capture/"))
     return <PhoneCapture id={path.split("/")[2]} />;
   if (!authReady) return <div className="loading full-page" role="status">Restoring your session…</div>;
-  if (!entryConsent)
+  if (!entryConsent && (path.startsWith("/studio") || path.startsWith("/coach") || path.startsWith("/practice/")))
     return (
       <EntryConsent
         onContinue={() => {
@@ -2745,7 +2746,7 @@ export default function App() {
             </Banner>
           )}
           {path.split("?")[0] === "/lab/electronics" ? (
-            <ElectronicsLab key={location.search} navigate={navigate} />
+            <ElectronicsLab key={location.search} navigate={navigate} role={user.role} />
           ) : path.startsWith("/coach") ? (
             <LiveCoach
               consent={entryConsent}

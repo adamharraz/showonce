@@ -1,5 +1,11 @@
+import { api, type LessonCard } from "./api";
+import {
+  ARDUINO_TOPICS,
+  validTopic,
+  type ArduinoTopic,
+} from "./arduino-reference";
 import FullArduinoReference from "./FullArduinoReference";
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { ArrowLeft, Box, ChevronRight, Play, Square } from "lucide-react";
 import "./electronics-lab.css";
 const Circuit = lazy(() => import("./LabCircuit"));
@@ -38,8 +44,10 @@ export const LAB_PARTS = {
 export type LabPart = keyof typeof LAB_PARTS;
 export default function ElectronicsLab({
   navigate,
+  role = "student",
 }: {
   navigate: (path: string) => void;
+  role?: "instructor" | "student";
 }) {
   const [view, setView] = useState<"course" | "basics">("course");
   const [stage, setStage] = useState(0);
@@ -48,6 +56,30 @@ export default function ElectronicsLab({
   const [reset, setReset] = useState(0);
   const params = new URLSearchParams(location.search);
   const lesson = params.get("lesson");
+  const [topic, setTopic] = useState<ArduinoTopic>(() =>
+    validTopic(params.get("topic"))
+      ? (params.get("topic") as ArduinoTopic)
+      : "board",
+  );
+  const [lessons, setLessons] = useState<LessonCard[]>([]);
+  const [lessonError, setLessonError] = useState("");
+  useEffect(() => {
+    let active = true;
+    api<LessonCard[]>("/lessons")
+      .then((items) => {
+        if (active) setLessons(items.filter((item) => !!item.latest_version));
+      })
+      .catch(() => {
+        if (active)
+          setLessonError(
+            "Your saved lessons could not load. The reference is still available.",
+          );
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  const currentLesson = lessons.find((item) => item.id === lesson);
   const returnPath =
     lesson && /^[a-zA-Z0-9_-]+$/.test(lesson) ? `/lesson/${lesson}` : "/";
   function choose(next: number) {
@@ -63,12 +95,75 @@ export default function ElectronicsLab({
       <div className="page-heading">
         <div>
           <h1>Electronics lab</h1>
-          <p>Explore a circuit before you build it.</p>
+          <p>Explore a reference, then practise your own build.</p>
         </div>
         <span className="badge">
-          <Box size={15} /> LED circuit
+          <Box size={15} /> Electronics reference
         </span>
       </div>
+      <section className="lab-learning-context" aria-label="Your learning task">
+        <div>
+          <span className="small muted">
+            {currentLesson ? "Your lesson" : "Your next step"}
+          </span>
+          <h2>
+            {currentLesson?.title || "Bring the reference into your own task"}
+          </h2>
+          <p>
+            {currentLesson
+              ? "Use the reference to understand the parts. Return to your approved lesson to practise and check your build."
+              : "Choose a published lesson for practice, or explore the reference on its own."}
+          </p>
+        </div>
+        <div className="lab-context-actions">
+          {currentLesson ? (
+            <button
+              className="button primary"
+              onClick={() => navigate(returnPath)}
+            >
+              Continue lesson <ChevronRight size={16} />
+            </button>
+          ) : (
+            <button className="button primary" onClick={() => navigate("/")}>
+              Find a lesson <ChevronRight size={16} />
+            </button>
+          )}
+          {role === "instructor" && (
+            <button
+              className="button secondary"
+              onClick={() => navigate("/studio")}
+            >
+              Teach this task
+            </button>
+          )}
+        </div>
+        {lessons.length > 0 && (
+          <label className="lab-lesson-picker">
+            Practice lesson
+            <select
+              aria-label="Choose a practice lesson"
+              value={currentLesson?.id || ""}
+              onChange={(e) =>
+                navigate(
+                  `/lab/electronics?topic=${topic}${e.target.value ? `&lesson=${encodeURIComponent(e.target.value)}` : ""}`,
+                )
+              }
+            >
+              <option value="">Explore without a lesson</option>
+              {lessons.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {lessonError && (
+          <p className="fine" role="status">
+            {lessonError}
+          </p>
+        )}
+      </section>
       <div className="lab-view-tabs" role="group" aria-label="Reference view">
         <button
           className="button secondary"
@@ -86,7 +181,7 @@ export default function ElectronicsLab({
         </button>
       </div>
       {view === "course" ? (
-        <FullArduinoReference />
+        <FullArduinoReference topic={topic} onTopicChange={setTopic} />
       ) : (
         <>
           <div className="lab-layout">

@@ -12,15 +12,36 @@ const manifest = JSON.parse(
 );
 await rm(dest, { recursive: true, force: true });
 const bridge = `<script>
-// Only readiness is shared. No credentials, media, assessment or progress bridge.
-const notify = () => { if (!document.documentElement.classList.contains('is-loading')) { parent.postMessage({type:'showonce:arduino-ready'}, '*'); observer.disconnect(); } };
-const observer = new MutationObserver(notify);
-observer.observe(document.documentElement, {attributes:true, attributeFilter:['class']});
-addEventListener('load', notify);
+// The opaque-origin frame exchanges only allowlisted reference-topic state.
+const allowedTopics=new Set(['board','blink','button','knob','rgb','light','sensor','sound','piano','motor','heat','servo','stepper','plant','force','project']);
+let previous='',queued=false;
+document.documentElement.dataset.showonceBridge='ready';
+addEventListener('error',event=>{ document.documentElement.dataset.referenceError=String(event.message || event.target?.src || 'Resource could not load').slice(0,160); },true);
+function report(){
+ queued=false;
+ const active=document.querySelector('.lesson[aria-current="step"]');
+ const candidate=active?.dataset.id || location.hash.slice(1);
+ const topic=allowedTopics.has(candidate)?candidate:'board';
+ const ready=!document.documentElement.classList.contains('is-loading');
+ const webgl=!document.getElementById('stage')?.classList.contains('no-webgl');
+ const data={type:'showonce:arduino-state',topic,ready,webgl};
+ const signature=JSON.stringify(data);
+ if(signature!==previous){previous=signature;parent.postMessage(data,'*');}
+}
+function schedule(){if(!queued){queued=true;requestAnimationFrame(report);}}
+new MutationObserver(schedule).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class','aria-current']});
+addEventListener('load',schedule);
+addEventListener('message',event=>{
+ if(event.source!==parent || event.data?.type!=='showonce:select-topic' || !allowedTopics.has(event.data.topic))return;
+ const current=document.querySelector('.lesson[aria-current="step"]');
+ if(current?.dataset.id!==event.data.topic)document.querySelector('.lesson[data-id="'+event.data.topic+'"]')?.click();
+ schedule();
+});
 </script><style>
-/* Credit is presented in the host's About section, outside the workspace. */
+/* Designer attribution is accessible in the host About section. */
 .credit { visibility: hidden !important; pointer-events: none !important; }
 </style>`;
+
 for (const file of manifest.files) {
   if (path.isAbsolute(file.path) || file.path.split("/").includes(".."))
     throw Error("Invalid snapshot path");
@@ -69,4 +90,68 @@ for (const file of manifest.files) {
 }
 console.log(
   `Prepared ${manifest.files.length} verified Arduino reference files.`,
+);
+
+// A self-contained page also works where opaque-origin frames cannot fetch modules.
+// The sandbox stays intact; no parent credentials or network permissions are added.
+const { build: bundleReference } = await import("vite");
+const entryFile = path.join(dest, "assets/index-BodLthS6.js");
+let entry = await readFile(entryFile, "utf8");
+const preloadStart = entry.indexOf("o=function(e,o,s){");
+const preloadEnd = entry.indexOf("},s=[", preloadStart);
+if (preloadStart < 0 || preloadEnd < 0)
+  throw Error("Unexpected preload helper; review offline packaging");
+entry =
+  entry.slice(0, preloadStart) +
+  "o=function(loader){return Promise.resolve().then(loader)}" +
+  entry.slice(preloadEnd + 1);
+await writeFile(entryFile, entry);
+const built = await bundleReference({
+  configFile: false,
+  publicDir: false,
+  logLevel: "error",
+  build: {
+    write: false,
+    emptyOutDir: false,
+    modulePreload: false,
+    minify: true,
+    lib: { entry: entryFile, formats: ["es"] },
+    rollupOptions: { output: { inlineDynamicImports: true } },
+  },
+});
+const output = Array.isArray(built) ? built[0].output : built.output;
+const js = output.find((file) => file.type === "chunk")?.code;
+if (!js) throw Error("No offline reference bundle");
+let css = await readFile(path.join(dest, "assets/index-CeIbtN2h.css"), "utf8");
+const fontRefs = [...css.matchAll(/url\((['"]?)([^)'"\s]+\.woff2)\1\)/g)];
+for (const match of fontRefs) {
+  const local = match[2].startsWith("/arduino-reference/")
+    ? path.join(dest, match[2].slice("/arduino-reference/".length))
+    : path.resolve(dest, "assets", match[2]);
+  if (!local.startsWith(dest + path.sep)) throw Error("Invalid font reference");
+  const data = (await readFile(local)).toString("base64");
+  css = css.replaceAll(match[0], `url(data:font/woff2;base64,${data})`);
+}
+for (const file of manifest.files.filter((file) =>
+  file.path.endsWith(".html"),
+)) {
+  const out = path.join(dest, file.path);
+  let html = await readFile(out, "utf8");
+  html = html.replace(
+    /<link\b[^>]*rel="(?:preload|icon|apple-touch-icon|manifest)"[^>]*>/g,
+    "",
+  );
+  html = html.replace(
+    /<link\b[^>]*rel="stylesheet"[^>]*>/g,
+    () => `<style>${css}</style>`,
+  );
+  html = html.replace(
+    /<script\b[^>]*type="module"[^>]*src="[^"]+"[^>]*><\/script>/g,
+    () =>
+      `<script type="module">${js.replace(/<\/script/gi, "<\\/script")}</script>`,
+  );
+  await writeFile(out, html);
+}
+console.log(
+  "Bundled isolated reference pages with inline scripts and local fonts.",
 );

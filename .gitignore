@@ -17,3 +17,8 @@ work/
 outputs/
 
 frontend/public/arduino-reference/
+
+preview-dist/
+
+.preview-runtime/
+.data-preview/
