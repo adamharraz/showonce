@@ -4,7 +4,7 @@ import type { CatalogPart, PartVariant } from "./components-api";
 // Original procedural assets. Dimensions and colours are illustrative references.
 // No topology, physical pose, resistance or connected endpoints are inferred here.
 export function componentModel(
-  part: CatalogPart,
+  part: Pick<CatalogPart, "asset">,
   variant?: PartVariant,
   pinId?: string | null,
 ) {

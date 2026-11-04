@@ -1,0 +1,8 @@
+{
+  "name": "showonce-local-preview",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/preview-fullstack.mjs",
+    "build": "npm run build --prefix frontend"
+  }
+}

@@ -1,0 +1,270 @@
+.electronics-lab {
+  max-width: 1280px;
+  margin: auto;
+}
+.electronics-lab > .text-button {
+  margin-bottom: 18px;
+}
+.lab-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+  gap: 28px;
+  align-items: start;
+}
+.lab-workbench {
+  min-width: 0;
+}
+.lab-scene-wrap {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.lab-scene {
+  width: 100%;
+  height: clamp(290px, 45vw, 480px);
+}
+.lab-scene canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+.lab-scene-fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  padding: 32px;
+  background: #edf2ed;
+}
+.lab-view-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  padding: 8px 0;
+  color: #52635a;
+}
+.lab-caption {
+  font-size: 12px;
+  color: #52635a;
+  margin: 0 0 22px;
+}
+.lab-parts {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.lab-parts button {
+  border: 1px solid #c8d3cb;
+  border-radius: 6px;
+  padding: 10px 14px;
+  background: transparent;
+  color: #334d40;
+  min-height: 44px;
+}
+.lab-parts button[aria-pressed="true"] {
+  background: #dfece4;
+  border-color: #648674;
+}
+.lab-parts button:hover {
+  background: #e6eee8;
+}
+.lab-part-detail {
+  padding: 22px 0;
+}
+.lab-part-detail h2 {
+  font-size: 20px;
+}
+.lab-guide {
+  padding: 24px;
+}
+.lab-guide p {
+  font-size: 14px;
+}
+.lab-guide .fine {
+  font-size: 12px;
+}
+.lab-stages {
+  list-style: none;
+  margin: 24px 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.lab-stages button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  padding: 10px 8px;
+  background: transparent;
+  border: 0;
+  width: 100%;
+  color: #52635a;
+  border-radius: 6px;
+  min-height: 44px;
+}
+.lab-stages span {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid #c7d2ca;
+  border-radius: 5px;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.lab-stages button[aria-current="step"] {
+  background: #e1ece5;
+  color: #195648;
+  font-weight: 650;
+}
+.lab-actions {
+  padding: 12px 0;
+}
+.lab-guide details {
+  margin: 20px 0;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+.lab-guide summary {
+  cursor: pointer;
+  padding: 8px 0;
+}
+.lab-guide > .button {
+  width: 100%;
+}
+@media (max-width: 900px) {
+  .lab-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  .lab-scene {
+    height: 340px;
+  }
+}
+@media (max-width: 420px) {
+  .lab-view-controls {
+    align-items: start;
+  }
+  .lab-parts button {
+    padding: 10px;
+  }
+}
+
+.lab-view-tabs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.lab-view-tabs button[aria-pressed="true"] {
+  background: #dfece4;
+  border-color: #648674;
+  color: #195648;
+}
+.arduino-reference {
+  min-width: 0;
+}
+.arduino-reference-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.arduino-reference iframe {
+  display: block;
+  width: 100%;
+  height: min(850px, 82dvh);
+  min-height: 540px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f6eddd;
+}
+.arduino-reference-about {
+  margin: 20px 0;
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+}
+.arduino-reference-about summary {
+  cursor: pointer;
+  padding: 8px 0;
+}
+@media (max-width: 600px) {
+  .arduino-reference iframe {
+    min-height: 660px;
+    height: 82dvh;
+  }
+  .arduino-reference-toolbar {
+    align-items: start;
+  }
+}
+.lab-learning-context {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px 32px;
+  padding: 24px;
+  background: #edf3ef;
+  border: 1px solid #d4e1d8;
+  border-radius: 10px;
+  margin-bottom: 24px;
+}
+.lab-learning-context h2 {
+  margin: 4px 0 8px;
+  font-size: 21px;
+}
+.lab-learning-context p {
+  margin: 0;
+  font-size: 14px;
+}
+.lab-context-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.lab-lesson-picker {
+  grid-column: 1/-1;
+  display: grid;
+  gap: 7px;
+  max-width: 440px;
+  font-size: 13px;
+}
+.arduino-reference-toolbar label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  min-width: min(100%, 260px);
+}
+.arduino-reference-toolbar select,
+.lab-lesson-picker select {
+  min-height: 44px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #bccbc1;
+  border-radius: 6px;
+  color: #243c2e;
+  width: 100%;
+}
+.arduino-reference-toolbar {
+  margin-bottom: 14px;
+}
+.reference-notice {
+  padding: 12px 16px;
+  border: 1px solid #dfd3b1;
+  background: #faf7ed;
+  border-radius: 6px;
+  font-size: 13px;
+}
+@media (max-width: 850px) {
+  .lab-learning-context {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 18px;
+  }
+  .lab-context-actions {
+    justify-content: start;
+  }
+}
