@@ -30,7 +30,7 @@
 .about-source { margin-top: 24px !important; }
 .public-home code { overflow-wrap: anywhere; }
 .home-header nav > a:not(.button), .home-text-link, .home-footer > a:last-child { color: #183b66; font-weight: 800; }
-.home-hero { padding-block: 60px 76px; display: grid; grid-template-columns: 1.1fr 1fr; align-items: center; gap: 48px; }
+.home-hero { padding-block: 32px 44px; display: grid; grid-template-columns: 1.1fr 1fr; align-items: center; gap: 48px; }
 .home-eyebrow { color: #127362; font-size: 14px; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; margin: 0 0 18px; }
 .public-home h1 { font-size: clamp(36px, 4vw, 58px); line-height: 1.1; letter-spacing: -1.8px; margin: 0 0 24px; }
 .public-home h1 em { color: #1464d2; font-style: normal; }
@@ -43,9 +43,9 @@
 .home-workbench img { display: block; width: 100%; height: 390px; object-fit: cover; object-position: left bottom; }
 .home-workbench figcaption { padding: 20px; text-align: center; font-size: 15px; font-weight: 800; }
 .home-band { background: #f0f6ff; }
-.home-section { padding-block: 76px; }
+.home-section { padding-block: 44px; }
 .public-home section[id] { scroll-margin-top: 24px; }
-.home-steps { list-style: none; padding: 0; margin: 38px 0 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px; }
+.home-steps { list-style: none; padding: 0; margin: 22px 0 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px; }
 .home-steps li > span { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 16px; background: #dceaff; color: #1558ad; font-weight: 950; font-size: 22px; }
 .home-steps li:nth-child(2) > span { background: #d5eee5; color: #126957; }
 .home-steps li:nth-child(3) > span { background: #ffedb9; color: #79500b; }
@@ -104,7 +104,7 @@
   .home-hero { grid-template-columns: 1fr; gap: 32px; padding-block: 32px 48px; }
   .home-workbench { transform: none; }
   .home-workbench img { height: 280px; }
-  .home-section { padding-block: 52px; }
+  .home-section { padding-block: 32px; }
   .home-steps { gap: 24px; }
   .home-features { grid-template-columns: 1fr; gap: 36px; }
   .home-features p { min-height: 0; }

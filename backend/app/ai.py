@@ -60,7 +60,7 @@ def inference_schema(model):
             return value
         if '$ref' in value:
             return clean(definitions[value['$ref'].rsplit('/', 1)[-1]])
-        result = {key: ({name: clean(child) for name, child in item.items()} if key == 'properties' else clean(item)) for key, item in value.items() if key in allowed}
+        result = {key: ({name: clean(child) for name, child in item.items() if name != 'circuit_part'} if key == 'properties' else clean(item)) for key, item in value.items() if key in allowed}
         limits = []
         if 'maxLength' in value:
             limits.append(f"At most {value['maxLength']} characters.")

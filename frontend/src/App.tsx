@@ -68,11 +68,12 @@ import { acquire, useCapture } from "./capture";
 import { captureElapsedMs } from "./capture-clock";
 import { unresolved, reorder } from "./review";
 import LiveCoach from "./LiveCoach";
-import EntryConsent from "./EntryConsent";
 import Homepage from "./Homepage";
 import EvidencePage from "./EvidencePage";
 import AboutPage from "./AboutPage";
 import { topics } from "./PublicNavigation";
+
+import StepCircuit from "./StepCircuit";
 
 function usePath() {
   const [path, setPath] = useState(location.pathname);
@@ -321,10 +322,7 @@ function Login({
           </form>
         )}
         {error && <Banner tone="error">{error}</Banner>}
-        <div className="login-footer">
-          <span className="dot" /> For consenting university participants aged
-          18+
-        </div>
+
       </div>
     </div>
   );
@@ -424,11 +422,9 @@ function Library({
   return (
     <>
       <section
-        className="electronics-welcome purpose-welcome"
+        className="workspace-shortcuts"
         aria-label="ShowOnce learning workspace"
       >
-        <h2>Show a task. Share a lesson.</h2>
-        <p>Turn a camera or screen demonstration into reviewed steps others can practise.</p>
         <div className="purpose-actions">
           {user.role === "instructor" && <button className="button primary" onClick={() => navigate("/studio")}><Video size={18} /> Teach a task</button>}
           <a className="button secondary" href="#library-title" onClick={() => document.getElementById("library-title")?.focus()}><BookOpen size={18} /> Practise a task</a>
@@ -961,12 +957,7 @@ function Live({
       setError((e as Error).message);
     }
   }
-  const captureConsent = useRef<HTMLDialogElement>(null);
-  async function start(confirmed = false) {
-    if (!confirmed) {
-      captureConsent.current?.showModal();
-      return;
-    }
+  async function start() {
     setError("");
     setBusy(true);
     let media: MediaStream | null = null;
@@ -1145,32 +1136,6 @@ function Live({
         </span>
       </div>
       {error && <Banner tone="error">{error}</Banner>}
-      <dialog
-        ref={captureConsent}
-        className="capture-consent-dialog"
-        aria-labelledby="capture-consent-title"
-      >
-        <h2 id="capture-consent-title">Before you start</h2>
-        <p>
-          Everyone captured must be 18+ and consent to Google processing the
-          media. Keep private information off screen.
-        </p>
-        <form method="dialog">
-          <button className="button secondary" autoFocus>
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="button primary"
-            onClick={() => {
-              captureConsent.current?.close();
-              void start(true);
-            }}
-          >
-            Confirm and start
-          </button>
-        </form>
-      </dialog>
       {notice && <Banner>{notice}</Banner>}
       {(!config.ai_configured || !config.free_tier_confirmed) && (
         <Banner tone="warning">
@@ -1181,6 +1146,7 @@ function Live({
       )}
       {!session ? (
         <div className="panel setup-panel">
+          <p className="fine">{practice ? "Gemini uses shared frames to guide your practice." : "ShowOnce records your demonstration and sends it to Gemini for lesson drafting. Recordings are kept for seven days."}</p>
           <div className="section-heading">
             <h2>Capture source</h2>
           </div>
@@ -1403,6 +1369,7 @@ function Live({
                 </div>
                 <h3>{activeStep.title}</h3>
                 <p>{activeStep.instruction}</p>
+                <StepCircuit key={activeStep.id} step={activeStep} version={practice} />
                 {activeStep.evidence_ids?.slice(0, 2).map((fid) => (
                   <Evidence key={fid} id={fid} label="Instructor reference" />
                 ))}
@@ -1822,6 +1789,17 @@ function Review({
                   ))}
                 </div>
                 <label>
+                  3D circuit reference
+                  <select value={step.circuit_part || ""} onChange={e => updateStep(index, {
+                    ...step, circuit_part: (e.target.value || null) as Step["circuit_part"],
+                  })}>
+                    <option value="">No linked part</option>
+                    <option value="board">Development board</option>
+                    <option value="resistor">Resistor</option>
+                    <option value="led">LED</option>
+                  </select>
+                </label>
+                <label>
                   Observable outcome
                   <textarea
                     rows={2}
@@ -2050,6 +2028,11 @@ function LessonView({
   const [version, setVersion] = useState<Version | null>(null);
   const [error, setError] = useState("");
   const [practicing, setPracticing] = useState(false);
+  const requested = new URLSearchParams(location.search).get("version");
+  const stepId = new URLSearchParams(location.search).get("step");
+  useEffect(() => {
+    if (version && stepId) document.getElementById(`lesson-step-${stepId}`)?.scrollIntoView({block: "center"});
+  }, [version, stepId]);
   useEffect(() => {
     void api<LessonCard[]>("/lessons")
       .then(async (lessons) => {
@@ -2057,11 +2040,11 @@ function LessonView({
         if (!l?.latest_version)
           throw new Error("This lesson has not been published");
         setVersion(
-          await api<Version>(`/lessons/${id}/versions/${l.latest_version}`),
+          await api<Version>(`/lessons/${id}/versions/${requested && /^[1-9][0-9]*$/.test(requested) ? requested : l.latest_version}`),
         );
       })
       .catch((e) => setError(e.message));
-  }, [id]);
+  }, [id, requested]);
   if (!version)
     return error ? (
       <Banner tone="error">{error}</Banner>
@@ -2083,7 +2066,7 @@ function LessonView({
         </span>
       </div>
       <div className="lesson-toolbar">
-        {/\b(esp32|arduino|breadboard|resistor|circuit|led)\b/i.test([d.title, ...d.materials].join(" ")) && (
+        {!d.steps.some(step => step.circuit_part) && /\b(esp32|arduino|breadboard|resistor|circuit|led)\b/i.test([d.title, ...d.materials].join(" ")) && (
           <button className="button secondary" onClick={() => navigate(`/lab/electronics?lesson=${encodeURIComponent(id)}&topic=${referenceTopicForLesson([d.title,...d.materials].join(" "))}`)}><Layers3 size={16} /> Explore in 3D</button>
         )}
 
@@ -2139,12 +2122,13 @@ function LessonView({
         </aside>
         <div>
           {d.steps.map((step, index) => (
-            <section className="panel read-step" key={step.id}>
+            <section className="panel read-step" id={`lesson-step-${step.id}`} key={step.id}>
               <div className="read-step-heading">
                 <span className="step-number">{index + 1}</span>
                 <h2>{step.title}</h2>
               </div>
               <p>{step.instruction}</p>
+              <StepCircuit step={step} version={version} navigate={navigate} />
               <div className="evidence-row">
                 {step.evidence_ids?.map((fid) => (
                   <Evidence
@@ -2365,7 +2349,6 @@ function PhoneCapture({ id }: { id: string }) {
   const [mode, setMode] = useState("teach");
   const [state, setState] = useState("capturing");
   const [error, setError] = useState("");
-  const [consent, setConsent] = useState(false);
   const [mic, setMic] = useState(
     new URLSearchParams(location.search).get("mic") !== "0",
   );
@@ -2460,17 +2443,8 @@ function PhoneCapture({ id }: { id: string }) {
             />{" "}
             Include this phone’s microphone
           </label>
-          <label className="checkbox">
-            <input
-              type="checkbox"
-              checked={consent}
-              onChange={(e) => setConsent(e.target.checked)}
-            />{" "}
-            Everyone captured is 18+ and consents to Google processing this
-            feed.
-          </label>
+          <p className="fine">Connecting shares this feed with ShowOnce and Google Gemini.</p>
           <button
-            disabled={!consent}
             className="button primary full"
             onClick={() => void start()}
           >
@@ -2496,9 +2470,6 @@ function PhoneCapture({ id }: { id: string }) {
 }
 
 export default function App() {
-  const [entryConsent, setEntryConsent] = useState(
-    () => sessionStorage.getItem("showonce-entry-consent-v1") === "accepted",
-  );
   const [path, navigateRaw] = usePath();
   const publicTopic = topics.find(topic => path === `/about/${topic.slug}`);
   const navigate = useCallback((p: string) => navigateRaw(p), [navigateRaw]);
@@ -2575,11 +2546,11 @@ export default function App() {
       .finally(() => setAuthReady(true));
   }, []);
   useEffect(() => {
-    if (path === "/enter" && user && entryConsent) {
+    if (path === "/enter" && user) {
       history.replaceState({}, "", "/");
       dispatchEvent(new PopStateEvent("popstate"));
     }
-  }, [path, user, entryConsent, navigateRaw]);
+  }, [path, user, navigateRaw]);
   if (path === "/about/evidence") return <EvidencePage />;
   if (publicTopic && publicTopic.slug !== "evidence") return <AboutPage topic={publicTopic.slug} />;
   if (path === "/welcome" || (path === "/" && !user)) return <Homepage />;
@@ -2594,15 +2565,6 @@ export default function App() {
   if (path.startsWith("/capture/"))
     return <PhoneCapture id={path.split("/")[2]} />;
   if (!authReady) return <div className="loading full-page" role="status">Restoring your session…</div>;
-  if (!entryConsent && (path.startsWith("/studio") || path.startsWith("/coach") || path.startsWith("/practice/")))
-    return (
-      <EntryConsent
-        onContinue={() => {
-          sessionStorage.setItem("showonce-entry-consent-v1", "accepted");
-          setEntryConsent(true);
-        }}
-      />
-    );
   if (!user) return <Login config={config} onLogin={(signedInUser) => {
     setUser(signedInUser);
     if (path === "/enter") navigate(signedInUser.role === "instructor" ? "/studio" : "/");
@@ -2692,8 +2654,6 @@ export default function App() {
               void logoutHostedAuth(config);
               setToken("");
               setUser(null);
-              sessionStorage.removeItem("showonce-entry-consent-v1");
-              setEntryConsent(false);
               navigate("/");
             }}
           >
@@ -2749,11 +2709,10 @@ export default function App() {
             <ElectronicsLab key={location.search} navigate={navigate} role={user.role} />
           ) : path.startsWith("/coach") ? (
             <LiveCoach
-              consent={entryConsent}
               key={path}
               config={config}
               lessonId={path.split("/")[2]}
-              versionNumber={Number(path.split("/")[3]) || undefined}
+              versionNumber={Number(location.pathname.split("/")[3]) || undefined}
             />
           ) : path.startsWith("/review/") ? (
             <Review
@@ -2763,7 +2722,7 @@ export default function App() {
             />
           ) : path.startsWith("/lesson/") ? (
             <LessonView
-              id={path.split("/")[2]}
+              id={location.pathname.split("/")[2]}
               user={user}
               config={config}
               navigate={navigate}

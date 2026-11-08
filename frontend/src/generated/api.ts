@@ -484,6 +484,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/lessons/{id}/versions/{version}/steps/{step_id}/part-question": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Explain Part */
+        post: operations["explain_part_api_lessons__id__versions__version__steps__step_id__part_question_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/circuit/part-question": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Explain Reference */
+        post: operations["explain_reference_api_circuit_part_question_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/lessons/{id}": {
         parameters: {
             query?: never;
@@ -681,11 +715,8 @@ export interface components {
              * @default true
              */
             remove_background: boolean;
-            /**
-             * Consent
-             * @constant
-             */
-            consent: true;
+            /** Consent */
+            consent?: true | null;
         };
         /** Criterion */
         Criterion: {
@@ -851,6 +882,13 @@ export interface components {
             /** Variants */
             variants?: components["schemas"]["Variant"][];
         };
+        /** PartAnswer */
+        PartAnswer: {
+            /** Answer */
+            answer: string;
+            /** Highlight */
+            highlight?: ("board" | "resistor" | "led") | null;
+        };
         /** PartEdit */
         PartEdit: {
             /** Revision */
@@ -868,6 +906,16 @@ export interface components {
             value_text?: string | null;
             /** Note */
             note: string;
+        };
+        /** PartQuestion */
+        PartQuestion: {
+            /**
+             * Part
+             * @enum {string}
+             */
+            part: "board" | "resistor" | "led";
+            /** Question */
+            question: string;
         };
         /** Pin */
         Pin: {
@@ -1032,6 +1080,11 @@ export interface components {
         };
         /** Step */
         Step: {
+            /**
+             * Circuit Part
+             * @default null
+             */
+            circuit_part: ("board" | "resistor" | "led") | null;
             /** Id */
             id?: string;
             /** Title */
@@ -2118,6 +2171,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VersionRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    explain_part_api_lessons__id__versions__version__steps__step_id__part_question_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                version: number;
+                step_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PartQuestion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartAnswer"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    explain_reference_api_circuit_part_question_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PartQuestion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartAnswer"];
                 };
             };
             /** @description Validation Error */

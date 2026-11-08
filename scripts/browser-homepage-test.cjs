@@ -39,10 +39,6 @@ const assert = require('node:assert/strict');
     await page.keyboard.press('Tab');
     assert.ok(await page.evaluate(() => document.activeElement?.tagName === 'A'));
     await page.getByRole('link',{name:'Open ShowOnce',exact:true}).first().click();
-    const continueButton = page.getByRole('button',{name:'Continue to ShowOnce',exact:true});
-    assert.equal(await continueButton.isEnabled(),false);
-    await page.getByRole('checkbox',{name:/I am 18/}).check();
-    await continueButton.click();
     await page.getByRole('button',{name:'Practise a task',exact:true}).click();
     await page.getByRole('heading',{name:'Lessons',exact:true}).waitFor();
     await page.reload();
@@ -52,19 +48,16 @@ const assert = require('node:assert/strict');
     await page.getByRole('heading',{name:'Lessons',exact:true}).waitFor();
     await page.goBack();
     await page.getByRole('heading',{name:/Turn your demonstration/}).waitFor();
-    // New visitors retain a direct coach URL through consent and login.
+    // New visitors retain a direct coach URL through login.
     const fresh = await browser.newContext({viewport:{width:1440,height:1000}});
     const direct = await fresh.newPage();
     await direct.goto('http://127.0.0.1:8001/coach');
-    await direct.getByRole('checkbox',{name:/I am 18/}).check();
-    await direct.getByRole('button',{name:'Continue to ShowOnce',exact:true}).click();
     await direct.getByRole('button',{name:'Teach a task',exact:true}).click();
     await direct.getByRole('heading',{name:'Get live help',exact:true}).waitFor();
     assert.equal(new URL(direct.url()).pathname,'/coach');
     await direct.getByRole('button',{name:'Sign out',exact:true}).click();
     await direct.getByRole('heading',{name:/Turn your demonstration/}).waitFor();
     await direct.getByRole('link',{name:'Open ShowOnce',exact:true}).first().click();
-    assert.equal(await direct.getByRole('button',{name:'Continue to ShowOnce',exact:true}).isEnabled(),false);
     // The public page remains useful when app configuration fails.
     const offline = await browser.newContext();
     await offline.route('**/api/config', route => route.abort());

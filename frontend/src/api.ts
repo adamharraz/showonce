@@ -4,8 +4,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type Question = Required<components["schemas"]["Question"]>;
 export type Criterion = Required<components["schemas"]["Criterion"]>;
 export type Step = Required<
-  Omit<components["schemas"]["Step"], "criteria" | "questions">
-> & { criteria: Criterion[]; questions: Question[] };
+  Omit<components["schemas"]["Step"], "criteria" | "questions" | "circuit_part">
+> & { circuit_part?: components["schemas"]["Step"]["circuit_part"]; criteria: Criterion[]; questions: Question[] };
 export type Draft = Required<
   Omit<components["schemas"]["LessonDraft"], "steps" | "questions">
 > & { steps: Step[]; questions: Question[] };

@@ -1,3 +1,4 @@
+import LabSuggestions from "./LabSuggestions";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowUp,
@@ -16,8 +17,9 @@ import {
 } from "lucide-react";
 import { api, getToken, type Config, type Version } from "./api";
 import { CoachSpeaker, useCoachMedia } from "./coach-media";
-import ComponentPanel from "./ComponentPanel";
+import { InspectionResults } from "./ComponentPanel";
 import { emptyScene, type ComponentScene } from "./components-api";
+import { validTopic } from "./arduino-reference";
 
 type State =
   | "idle"
@@ -34,12 +36,10 @@ const duration = (seconds: number) =>
     .padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
 
 export default function LiveCoach({
-  consent,
   config,
   lessonId,
   versionNumber,
 }: {
-  consent: boolean;
   config: Config;
   lessonId?: string;
   versionNumber?: number;
@@ -51,17 +51,29 @@ export default function LiveCoach({
   const [speaking, setSpeaking] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
-  const [goal, setGoal] = useState("");
+  const query = new URLSearchParams(location.search);
+  const linkedStep = query.get("step");
+  const part = query.get("part");
+  const referenceTopic = query.get("topic");
+  const [goal, setGoal] = useState(part ? `Help me use the ${part} in this step on my own build.` : "");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const [frames, setFrames] = useState(0);
   const [turns, setTurns] = useState(0);
   const [lesson, setLesson] = useState<Version | null>(null);
+  const electronics = query.get("mode") === "electronics" ||
+    (query.get("mode") !== "general" && (!lessonId || !!lesson && (
+      lesson.draft.steps.some(step => !!step.circuit_part) ||
+      /\b(electronics?|circuit|arduino|esp32|breadboard|resistor|led)\b/i.test(
+        [lesson.draft.title, ...lesson.draft.materials].join(" ")
+      )
+    )));
   const [stepIndex, setStepIndex] = useState(0);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [componentScene, setComponentScene] =
     useState<ComponentScene>(emptyScene);
+  const initialInspection = useRef(false);
   const [inspecting, setInspecting] = useState(false);
   const [componentNotice, setComponentNotice] = useState("");
   const [history, setHistory] = useState<
@@ -137,7 +149,10 @@ export default function LiveCoach({
   useEffect(() => {
     if (lessonId && versionNumber)
       void api<Version>(`/lessons/${lessonId}/versions/${versionNumber}`)
-        .then(setLesson)
+        .then(value => {
+          setLesson(value);
+          setStepIndex(Math.max(0, value.draft.steps.findIndex(s => s.id === linkedStep)));
+        })
         .catch((e) => setError(e.message));
   }, [lessonId, versionNumber]);
   useEffect(() => {
@@ -178,7 +193,7 @@ export default function LiveCoach({
   }, [inspecting]);
 
   async function start() {
-    if (!consent || state === "connecting") return;
+    if (state === "connecting") return;
     setError("");
     setNotice("");
     setState("connecting");
@@ -187,9 +202,10 @@ export default function LiveCoach({
     setComponentScene(emptyScene());
     setComponentNotice("");
     setInspecting(false);
+    initialInspection.current = false;
     setFrames(0);
     setTurns(0);
-    setStepIndex(0);
+    setStepIndex(Math.max(0, lesson?.draft.steps.findIndex(s => s.id === linkedStep) ?? 0));
     setElapsed(0);
     started.current = 0;
     let captured: MediaStream | null = null;
@@ -246,9 +262,11 @@ export default function LiveCoach({
           JSON.stringify({
             type: "authenticate",
             token: getToken(),
-            consent: true,
             source,
+            mode: electronics ? "electronics" : "general",
+            ...(electronics && validTopic(referenceTopic) ? { reference_topic: referenceTopic } : {}),
             goal,
+            ...(linkedStep ? {step_id: linkedStep, reference_part: part} : {}),
             ...(lessonId
               ? { lesson_id: lessonId, version: versionNumber }
               : {}),
@@ -321,8 +339,8 @@ export default function LiveCoach({
             setComponentScene(message.scene);
             setComponentNotice(
               message.scene.components.length
-                ? "Reference models loaded. Confirm or correct each suggestion, and check the board variant before using pin labels."
-                : "No supported components were identified. Try a closer view or browse the catalogue.",
+                ? "Review identified parts"
+                : "No supported components were identified. Try a closer view.",
             );
             break;
           case "component_notice":
@@ -386,12 +404,24 @@ export default function LiveCoach({
     "connecting",
   ].includes(state);
   const ready = state === "capturing";
+  useEffect(() => {
+    if (ready && source === "camera" && frames >= 3 && !initialInspection.current && !inspecting) {
+      initialInspection.current = true;
+      setInspecting(true);
+      send({type: "inspect_components"});
+    }
+  }, [ready, source, frames, inspecting]);
   const step = lesson?.draft.steps[stepIndex];
   return (
     <>
       <div className="page-heading">
         <div>
-            <h1>Get live help</h1>
+            <h1>{electronics ? "Electronics coach" : "Get live help"}</h1>
+            {linkedStep && lessonId && versionNumber && !running && (
+              <a href={`/lesson/${encodeURIComponent(lessonId)}?${new URLSearchParams({version: String(versionNumber), step: linkedStep})}`}>
+                Return to this lesson step
+              </a>
+            )}
         </div>
       </div>
       {error && (
@@ -454,8 +484,21 @@ export default function LiveCoach({
               <span>
                 {frames} frames shared · {turns} replies
               </span>
+              {ready && source === "camera" && frames > 0 && (
+                <button className="text-button" disabled={inspecting} onClick={() => {
+                  initialInspection.current = true;
+                  setInspecting(true);
+                  speaker.current?.interrupt();
+                  media.snapshot();
+                  send({ type: "inspect_components" });
+                }}>{inspecting ? "Identifying…" : "Identify visible parts"}</button>
+              )}
             </div>
           </div>
+          {sessionId && componentScene.components.length > 0 && <LabSuggestions scene={componentScene} />}
+          {componentNotice && <p className="fine" role="status">{componentNotice}</p>}
+          {sessionId && componentScene.components.length > 0 &&
+            <InspectionResults scene={componentScene} sessionId={sessionId} onChange={setComponentScene}/>}
           {!running ? (
             <section className="panel coach-setup">
               <h2>Start a session</h2>
@@ -478,11 +521,11 @@ export default function LiveCoach({
                 </button>
               </div>
               <label>
-                What are you working on? <span className="muted">Optional</span>
+                {electronics ? "What are you building?" : "What are you working on?"} <span className="muted">Optional</span>
                 <input
                   value={goal}
                   maxLength={2000}
-                  placeholder="For example, assembling a breadboard circuit"
+                  placeholder={electronics ? "For example, an LED circuit" : "Describe your task"}
                   onChange={(e) => setGoal(e.target.value)}
                 />
               </label>
@@ -497,7 +540,6 @@ export default function LiveCoach({
               <button
                 className="button primary"
                 disabled={
-                  !consent ||
                   !config.coach_enabled ||
                   !config.ai_configured ||
                   !config.free_tier_confirmed ||
@@ -517,12 +559,10 @@ export default function LiveCoach({
                   ? "Live coaching is unavailable. Check Settings."
                   : lessonId && !lesson
                     ? "Loading your lesson…"
-                    : "Ready to start."}
+                    : ""}
               </p>
               <p className="fine">
-                Camera and audio are streamed, not recorded. The conversation is
-                saved privately for seven days. You can type with the microphone
-                off.
+                Starting streams your selected feed to Google Gemini. Chat history is saved for seven days.
               </p>
             </section>
           ) : (
@@ -598,34 +638,9 @@ export default function LiveCoach({
               >
                 Continue to next step
               </button>
-              <p className="fine">
-                Continue is your choice. Spoken coaching does not mark formal
-                checkpoints passed.
-              </p>
+
             </section>
           )}
-          <details className="panel coach-references">
-            <summary>3D component references</summary>
-            <ComponentPanel
-              scene={componentScene}
-              sessionId={sessionId}
-              ready={ready && frames > 0}
-              inspecting={inspecting}
-              notice={componentNotice}
-              inspect={() => {
-                setInspecting(true);
-                speaker.current?.interrupt();
-                media.snapshot();
-                send({ type: "inspect_components" });
-              }}
-              onChange={(scene) => {
-                setComponentScene(scene);
-                setComponentNotice(
-                  "Your confirmation is saved. The assistant will receive it with your next question.",
-                );
-              }}
-            />
-          </details>
           {!running && (
             <details
               className="panel coach-history"
@@ -638,8 +653,7 @@ export default function LiveCoach({
             >
               <summary>Recent conversations</summary>
               <p className="fine">
-                Saved privately for seven days. Opening a conversation does not
-                run the AI.
+                Saved for seven days.
               </p>
               {history.map((record) => (
                 <button
@@ -648,9 +662,7 @@ export default function LiveCoach({
                   onClick={() => {
                     setSessionId(record.id);
                     setComponentScene(record.component_scene || emptyScene());
-                    setComponentNotice(
-                      "Saved reference inventory. Start a new session to inspect a fresh view.",
-                    );
+                    setComponentNotice("");
                     setMessages(
                       record.messages.map((message) => ({
                         ...message,

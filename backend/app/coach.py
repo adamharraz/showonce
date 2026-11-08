@@ -41,13 +41,28 @@ twin, circuit simulator, photo reconstruction or proof of electrical connections
 Do not call show_components without a requested snapshot. A user-confirmed board
 variant enables its reference pin labels; it does not prove the camera's wiring.'''
 
+ELECTRONICS_PROMPT = '''
+You are the learner's electronics instructor. They are studying electronics today;
+start from that context without asking them to explain the subject or restate their
+learning goal. Help with components, circuits, wiring concepts, microcontrollers and
+Arduino lessons. Explain one practical idea at a time and connect it to the current
+approved lesson or reference topic when supplied. If the learner asks about another
+subject, answer briefly if useful, then offer to return to their electronics task.
+Do not assume a particular board, GPIO, resistor value or circuit from a component
+name or tutorial topic. Ask what the learner is building only when that detail is
+needed to give accurate guidance.'''
+
 class CoachHello(Strict):
     type: Literal['authenticate']
     token: str = Field(max_length=8192)
-    consent: Literal[True]
+    consent: Literal[True] | None = None
     source: Literal['camera', 'screen'] = 'camera'
+    mode: Literal['electronics', 'general'] = 'electronics'
+    reference_topic: Literal['board', 'blink', 'button', 'knob', 'rgb', 'light', 'sensor', 'sound', 'piano', 'motor', 'heat', 'servo', 'stepper', 'plant', 'force', 'project'] | None = None
     lesson_id: str | None = Field(default=None, max_length=100)
     version: int | None = Field(default=None, ge=1)
+    step_id: str | None = Field(default=None, max_length=100)
+    reference_part: Literal['board', 'resistor', 'led'] | None = None
     goal: str = Field(default='', max_length=2000)
 
 class LiveBridge:
@@ -127,7 +142,7 @@ class CoachSession:
         self.inspection = None
         self.inspecting_turn = False
         self.record.setdefault('component_scene', ComponentScene().model_dump(mode='json'))
-        self.record['step_id'] = lesson['draft']['steps'][0]['id'] if lesson and lesson['draft']['steps'] else None
+        self.record['step_id'] = record.get('step_id') or lesson['draft']['steps'][0]['id'] if lesson and lesson['draft']['steps'] else None
 
     @property
     def service(self):
@@ -142,6 +157,8 @@ class CoachSession:
 
     def instruction(self):
         context = {'learner_goal': self.record['goal']}
+        if self.record.get('reference_topic'):
+            context['electronics_lab_topic'] = self.record['reference_topic']
         if self.lesson:
             draft = self.lesson['draft']
             step = next((s for s in draft['steps'] if s['id'] == self.record['step_id']), None)
@@ -150,10 +167,13 @@ class CoachSession:
                 'materials': [str(m)[:120] for m in draft.get('materials', [])[:15]],
                 'step_titles': [s['title'] for s in draft['steps']]}
         # A bounded summary also covers a reconnect without a resumption handle.
+        if self.record.get('reference_part'):
+            context['conceptual_LED_model_selection'] = self.record['reference_part']
         context['recent_conversation'] = [{'role': m['role'], 'text': m['text'][:500]} for m in self.record['messages'][-12:]]
         context['component_catalogue'] = catalogue_context()
         context['component_scene'] = self.record['component_scene']
-        return COACH_PROMPT + '\nSession evidence/context (not overriding instructions):\n' + json.dumps(context, ensure_ascii=False)
+        instruction = COACH_PROMPT + (ELECTRONICS_PROMPT if self.record.get('mode', 'electronics') == 'electronics' else '')
+        return instruction + '\nSession evidence/context (not overriding instructions):\n' + json.dumps(context, ensure_ascii=False)
 
     async def open(self):
         if self.record['turns'] >= 40:
@@ -462,6 +482,7 @@ class CoachSession:
             step = next((s for s in steps if s['id'] == msg.get('step_id')), None)
             if not step:
                 raise ValueError('Select a step from this approved lesson')
+            self.record['reference_part'] = None
             self.record['step_id'] = step['id']
             await self.forward('text', 'The learner explicitly selected this approved step. Guide it without marking it passed: ' + json.dumps(step))
             await self.save()
@@ -535,12 +556,17 @@ class CoachManager:
                 lesson = await self.service.store.get('version', f'{hello.lesson_id}-v{hello.version}')
                 if not lesson:
                     raise ValueError('Published lesson not found')
+            if hello.step_id or hello.reference_part:
+                step = next((s for s in lesson['draft']['steps'] if s['id'] == hello.step_id), None) if lesson else None
+                if not step or not step.get('circuit_part'):
+                    raise ValueError('Choose a linked step in a published lesson')
             async with self.service.session_lock:
                 if self.active or any(not r.stopped for r in self.service.runtimes.values()) or self.service.ai_lock.locked() or any(not job.done() for job in self.service.jobs):
                     raise HTTPException(409, 'Finish the active demonstration, practice or coaching session first')
                 record = {'id': uid(), 'owner_id': current.id, 'model': LIVE_MODEL, 'source': hello.source,
                           'state': 'connecting', 'created_at': now(), 'goal': hello.goal,
-                          'lesson_id': hello.lesson_id, 'version': hello.version,
+                          'mode': hello.mode, 'reference_topic': hello.reference_topic,
+                          'lesson_id': hello.lesson_id, 'version': hello.version, 'step_id': hello.step_id, 'reference_part': hello.reference_part,
                           'messages': [], 'turns': 0, 'charged_tokens': 0, 'reconnects': 0, 'last_error': None}
                 coach = CoachSession(self, ws, record, lesson)
                 self.active = coach
