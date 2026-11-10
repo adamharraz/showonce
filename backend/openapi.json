@@ -1090,6 +1090,111 @@
         }
       }
     },
+    "/api/lessons/{id}/versions/{version}/steps/{step_id}/part-question": {
+      "post": {
+        "summary": "Explain Part",
+        "operationId": "explain_part_api_lessons__id__versions__version__steps__step_id__part_question_post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Version"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Step Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartQuestion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/circuit/part-question": {
+      "post": {
+        "summary": "Explain Reference",
+        "operationId": "explain_reference_api_circuit_part_question_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartQuestion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/lessons/{id}": {
       "delete": {
         "summary": "Delete Lesson",
@@ -1578,8 +1683,15 @@
             "default": true
           },
           "consent": {
-            "type": "boolean",
-            "const": true,
+            "anyOf": [
+              {
+                "type": "boolean",
+                "const": true
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Consent"
           }
         },
@@ -1587,8 +1699,7 @@
         "type": "object",
         "required": [
           "request_id",
-          "image",
-          "consent"
+          "image"
         ],
         "title": "CreateTwin"
       },
@@ -2037,6 +2148,38 @@
         ],
         "title": "Part"
       },
+      "PartAnswer": {
+        "properties": {
+          "answer": {
+            "type": "string",
+            "maxLength": 1600,
+            "minLength": 1,
+            "title": "Answer"
+          },
+          "highlight": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "board",
+                  "resistor",
+                  "led"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Highlight"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "answer"
+        ],
+        "title": "PartAnswer"
+      },
       "PartEdit": {
         "properties": {
           "revision": {
@@ -2099,6 +2242,32 @@
           "note"
         ],
         "title": "PartEdit"
+      },
+      "PartQuestion": {
+        "properties": {
+          "part": {
+            "type": "string",
+            "enum": [
+              "board",
+              "resistor",
+              "led"
+            ],
+            "title": "Part"
+          },
+          "question": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Question"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "part",
+          "question"
+        ],
+        "title": "PartQuestion"
       },
       "Pin": {
         "properties": {
@@ -2542,6 +2711,23 @@
       "Step": {
         "additionalProperties": false,
         "properties": {
+          "circuit_part": {
+            "anyOf": [
+              {
+                "enum": [
+                  "board",
+                  "resistor",
+                  "led"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Circuit Part"
+          },
           "id": {
             "title": "Id",
             "type": "string"

@@ -25,7 +25,7 @@ class CreateTwin(Strict):
     title: str = Field(default='My build', min_length=1, max_length=200)
     session_id: str | None = Field(default=None, max_length=100)
     remove_background: bool = True
-    consent: Literal[True]
+    consent: Literal[True] | None = None
 
 class TwinRecord(Strict):
     id: str
@@ -252,7 +252,7 @@ class TwinManager:
             if prior['state'] != 'error': raise HTTPException(409,'Only failed generations can be explicitly retried. Review interrupted jobs in Modal first.')
             photo = await self.store.get_blob(prior['photo_key'])
             body = CreateTwin(request_id=uid(),image=base64.b64encode(photo).decode(),title=prior['title'],
-                session_id=prior.get('session_id'),remove_background=prior['remove_background'],consent=True)
+                session_id=prior.get('session_id'),remove_background=prior['remove_background'])
             return public_record(await self.create(body,current,photo_override=photo))
 
         @app.get('/api/twins/{id}/model')

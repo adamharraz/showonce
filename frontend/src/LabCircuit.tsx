@@ -5,19 +5,21 @@ import { componentModel, disposeModel } from "./component-models";
 import type { LabPart } from "./ElectronicsLab";
 
 export default function LabCircuit({
+  selected,
   stage,
   running,
   reset,
   onSelect,
 }: {
+  selected?: LabPart;
   stage: number;
   running: boolean;
   reset: number;
   onSelect: (part: LabPart) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
-  const state = useRef({ stage, running });
-  state.current = { stage, running };
+  const state = useRef({ stage, running, selected });
+  state.current = { stage, running, selected };
   const select = useRef(onSelect);
   select.current = onSelect;
   const resetView = useRef(() => {});
@@ -116,6 +118,9 @@ export default function LabCircuit({
       ],
       0x405951,
     );
+    const parts = { board, resistor, led };
+    const outline = new THREE.BoxHelper(board, 0x1479cc);
+    scene.add(outline);
     const halo = new THREE.PointLight(0xff4d35, 0, 4);
     halo.position.set(3, 1.4, -1.5);
     scene.add(halo);
@@ -165,6 +170,8 @@ export default function LabCircuit({
     renderer.domElement.addEventListener("webglcontextlost", lost);
     renderer.setAnimationLoop((time) => {
       const { stage, running } = state.current;
+      outline.visible = !!state.current.selected;
+      if (state.current.selected) outline.setFromObject(parts[state.current.selected]);
       output.visible = stage >= 1;
       ground.visible = stage >= 2;
       const lit = stage === 3 && running && Math.floor(time / 500) % 2 === 0;

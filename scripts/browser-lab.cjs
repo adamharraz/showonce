@@ -19,7 +19,6 @@ const base = process.env.BASE_URL || "http://127.0.0.1:5173";
   await context.addInitScript(() => {
     try {
       sessionStorage.setItem("showonce-token", "test-only");
-      sessionStorage.setItem("showonce-entry-consent-v1", "accepted");
     } catch {}
   });
   const lesson = {

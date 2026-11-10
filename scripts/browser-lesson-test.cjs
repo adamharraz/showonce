@@ -46,8 +46,6 @@ let browser;
     throw new Error("Refusing to test against an unmarked model server");
   await inspectLayout("login");
   await page.getByRole("link", { name: "Open ShowOnce", exact: true }).first().click();
-  await page.getByRole("checkbox", { name: /I am 18/ }).check();
-  await page.getByRole("button", { name: "Continue to ShowOnce", exact: true }).click();
   await page.getByRole("button", { name: "Teach a task", exact: true }).click();
   await page.getByRole("button", { name: "Lessons", exact: true }).click();
   await inspectLayout("library-empty");
@@ -58,7 +56,6 @@ let browser;
   await page
     .getByRole("button", { name: "Start demonstration", exact: true })
     .click();
-  await page.getByRole("button", { name: "Confirm and start", exact: true }).click();
   await page.waitForTimeout(2500);
   await page.getByRole("button", { name: /Finish & review/i }).click();
   await page.getByRole("heading", { name: "Review lesson" }).waitFor();
@@ -110,7 +107,6 @@ let browser;
   await page
     .getByRole("button", { name: "Start practice", exact: true })
     .click();
-  await page.getByRole("button", { name: "Confirm and start", exact: true }).click();
   await page.waitForTimeout(2500);
   await inspectLayout("practice");
   await page

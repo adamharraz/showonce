@@ -22,7 +22,18 @@ class Criterion(Strict):
     description: str = Field(min_length=1, max_length=1000)
     mode: Literal['visual', 'manual'] = 'manual'
 
+CircuitPart = Literal['board', 'resistor', 'led']
+
+class PartQuestion(Strict):
+    part: CircuitPart
+    question: str = Field(min_length=1, max_length=500)
+
+class PartAnswer(Strict):
+    answer: str = Field(min_length=1, max_length=1600)
+    highlight: CircuitPart | None = None
+
 class Step(Strict):
+    circuit_part: CircuitPart | None = None
     id: str = Field(default_factory=uid)
     title: str = Field(min_length=1, max_length=200)
     instruction: str = Field(min_length=1, max_length=4000)

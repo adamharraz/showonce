@@ -36,7 +36,7 @@ export default function EvidencePage() {
         <p className="home-eyebrow">Software verification</p><h2>What the technical checks establish.</h2>
         <div className="evidence-feedback">
           <article><h3><CheckCircle2 size={21} /> Automated checks</h3><p>On 14 October 2026, 88 backend tests and 9 frontend tests passed, together with the production build. These check software behaviour.</p></article>
-          <article><h3><CheckCircle2 size={21} /> Browser workflows</h3><p>Local fixture checks passed capture, review, publishing, export, practice, and live-help controls. Homepage checks covered entry, consent, returning sessions, navigation, and layouts from 320 to 1440 pixels.</p></article>
+          <article><h3><CheckCircle2 size={21} /> Browser workflows</h3><p>Local fixture checks passed capture, review, publishing, export, practice, and live-help controls. Homepage checks covered entry, returning sessions, navigation, and layouts from 320 to 1440 pixels.</p></article>
         </div>
         <p className="home-note">Browser fixtures use synthetic media and test-only model results. Passing these checks does not measure real AI accuracy or participant learning.</p>
         <h3>Documented real AI exchanges</h3>

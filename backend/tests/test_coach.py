@@ -257,3 +257,57 @@ async def test_installed_sdk_gets_fixed_live_model_and_bounded_config(tmp_path):
     ai=FakeAI(); ai.client=Client()
     bridge=LiveBridge(ai,'Synthetic test instruction')
     await bridge.open('resume-handle'); await bridge.close()
+
+def test_linked_circuit_question_and_coach_use_published_step(coach_client, monkeypatch):
+    import json
+    from app.models import PartAnswer
+    from tests.test_app import complete_teaching
+
+    client = coach_client
+    headers, _, lesson = complete_teaching(client)
+    draft = lesson['draft']
+    draft['questions'][0]['answer'] = 'Reviewed.'
+    draft['steps'].append(Step(title='Trace the resistor', instruction='Trace the series path.',
+                               expected_outcome='Identify the resistor.', provenance='instructor-confirmed', circuit_part='resistor').model_dump())
+    step_id = draft['steps'][1]['id']
+    base = '/api/lessons/' + lesson['id']
+    saved = client.patch(base + '/draft', headers=headers, json={'revision': lesson['revision'], 'draft': draft})
+    assert saved.status_code == 200, saved.text
+    published = client.post(base + '/publish', headers=headers, json={'revision': saved.json()['revision'], 'reviewed': True})
+    assert published.status_code == 200, published.text
+    student, token = login(client, 'student')
+    async def general(instruction, prompt, schema):
+        context = json.loads(prompt)
+        assert context['approved_step']['id'] == step_id
+        assert context['selected_model_part'] == 'led'
+        return PartAnswer(answer='Follow the LED back to its series resistor.', highlight='resistor')
+    monkeypatch.setattr(client.app.state.service.ai, 'general', general, raising=False)
+    question = {'part': 'led', 'question': 'Which part limits current?'}
+    route = base + '/versions/1/steps/'
+    assert client.post(route + draft['steps'][0]['id'] + '/part-question', headers=student, json=question).status_code == 404
+    reply = client.post(route + step_id + '/part-question', headers=student, json=question)
+    assert reply.status_code == 200 and reply.json()['highlight'] == 'resistor', reply.text
+    with client.websocket_connect('/api/coaching/stream', headers={'origin':'http://localhost:8000'}) as ws:
+        authenticate(ws, token, lesson_id=lesson['id'], version=1, step_id=step_id, reference_part='led')
+        context = json.loads(TestBridge.instances[-1].instruction.split('overriding instructions):\n')[-1])
+        assert context['current_approved_step']['id'] == step_id
+        assert context['conceptual_LED_model_selection'] == 'led'
+        ws.send_json({'type':'control','action':'finish'})
+        until(ws, 'finished')
+
+def test_electronics_coach_starts_with_subject_and_lab_topic(coach_client):
+    _, token = login(coach_client, 'student')
+    with coach_client.websocket_connect('/api/coaching/stream', headers={'origin':'http://localhost:8000'}) as ws:
+        authenticate(ws, token, mode='electronics', reference_topic='blink')
+        instruction = TestBridge.instances[-1].instruction
+        assert "learner's electronics instructor" in instruction
+        assert '"electronics_lab_topic": "blink"' in instruction
+        assert '"learner_goal": ""' in instruction
+        ws.send_json({'type':'control', 'action':'finish'})
+        until(ws, 'finished')
+
+    with coach_client.websocket_connect('/api/coaching/stream', headers={'origin':'http://localhost:8000'}) as ws:
+        authenticate(ws, token, mode='general')
+        assert "learner's electronics instructor" not in TestBridge.instances[-1].instruction
+        ws.send_json({'type':'control', 'action':'finish'})
+        until(ws, 'finished')

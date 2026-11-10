@@ -268,3 +268,24 @@
     justify-content: start;
   }
 }
+
+.step-circuit, .part-question {
+  display: grid;
+  gap: 0.75rem;
+  margin-block: 1rem;
+  justify-items: start;
+}
+.step-circuit > .panel { width: 100%; min-width: 0; }
+.part-question label { width: 100%; }
+
+.workspace-shortcuts { margin-bottom: 1rem; }
+.lab-context-actions:not(:empty) { margin-bottom: .75rem; }
+.lab-suggestions { border-top: 1px solid var(--border); padding-block: .75rem; }
+.lab-suggestions h3 { font-size: 1rem; margin: 0 0 .25rem; }
+.lab-suggestions button { display: flex; align-items: baseline; gap: .6rem; text-align: left; }
+.lab-suggestions small { color: var(--muted); }
+.lab-tutorial { width: min(68rem, 96vw); max-height: 90dvh; padding: clamp(12px, 2vw, 24px); border: 1px solid var(--border); border-radius: 12px; }
+.lab-tutorial::backdrop { background: rgb(12 24 40 / 55%); }
+.lab-tutorial header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem; margin-bottom: .75rem; }
+.lab-tutorial header h2 { margin: 0; }
+.lab-tutorial .arduino-reference iframe { height: 64dvh; min-height: 380px; }

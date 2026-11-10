@@ -18,7 +18,6 @@ export default function TwinStudio({
 }) {
   const [photo, setPhoto] = useState<string | null>(null);
   const [title, setTitle] = useState("My build");
-  const [consent, setConsent] = useState(false);
   const [removeBg, setRemoveBg] = useState(true);
   const [twin, setTwin] = useState<Twin | null>(null);
   const [history, setHistory] = useState<Twin[]>([]);
@@ -99,7 +98,6 @@ export default function TwinStudio({
     request.current = crypto.randomUUID();
     setTwin(null);
     setError("");
-    setConsent(false);
   };
   async function choosePhoto(file?: File) {
     if (!file) return;
@@ -121,13 +119,12 @@ export default function TwinStudio({
       request.current = crypto.randomUUID();
       setTwin(null);
       setError("");
-      setConsent(false);
-    } catch (e) {
+      } catch (e) {
       setError((e as Error).message);
     }
   }
   async function generate() {
-    if (!photo || !consent || submitting) return;
+    if (!photo || submitting) return;
     setSubmitting(true);
     setError("");
     try {
@@ -138,7 +135,6 @@ export default function TwinStudio({
           title,
           session_id: sessionId,
           remove_background: removeBg,
-          consent: true,
         }),
       );
       setPhoto(null);
@@ -240,20 +236,11 @@ export default function TwinStudio({
             />
             Remove the background before reconstruction
           </label>
-          <label className="check-label">
-            <input
-              type="checkbox"
-              checked={consent}
-              onChange={(e) => setConsent(e.target.checked)}
-            />
-            Everyone captured is 18+ and consents to this photo being processed
-            on Modal and saved privately for seven days.
-          </label>
+          <p className="fine">Generating sends this photo to Modal. It is stored privately for seven days.</p>
           <div className="coach-source-buttons">
             <button
               className="button primary"
               disabled={
-                !consent ||
                 !title.trim() ||
                 submitting ||
                 !config.twin_enabled ||

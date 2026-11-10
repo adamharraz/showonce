@@ -20,8 +20,6 @@ let browser;
   page.on("pageerror", (e) => errors.push(e.message));
   const response = await page.goto("http://127.0.0.1:8001");
   assert.equal(response.headers()["x-showonce-test-fixture"], "true");
-  await page.getByRole("checkbox", { name: /I am 18/ }).check();
-  await page.getByRole("button", { name: "Continue to ShowOnce", exact: true }).click();
   async function inspect(name) {
     await page.waitForTimeout(250);
     const result = await page.evaluate(() => {
@@ -161,19 +159,10 @@ let browser;
       .isEnabled(),
     true,
   );
-  await page.getByRole("button", { name: "Start demonstration", exact: true }).click();
-  await page.getByRole("dialog", { name: "Before you start" }).waitFor();
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  assert.equal(
-    await page
-      .getByRole("button", { name: "Start demonstration", exact: true })
-      .isEnabled(),
-    true,
-  );
   await page
-    .getByRole("checkbox", { name: /Include natural narration/ })
+    .getByRole("checkbox", { name: /Include natural narration })
     .uncheck();
-  checks.push("Consent gates capture; narration can be disabled.");
+  checks.push("Narration can be disabled.");
   await inspect("capture-setup");
   await page
     .getByRole("button", { name: "Lesson library", exact: true })

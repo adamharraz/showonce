@@ -27,8 +27,6 @@ let activeBrowser;
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("http://127.0.0.1:8000");
-  await page.getByRole("checkbox", { name: /I am 18/ }).check();
-  await page.getByRole("button", { name: "Continue to ShowOnce", exact: true }).click();
   await page.getByRole("button", { name: /instructor/i }).click();
   await page.getByRole("heading", { name: "Lesson library" }).waitFor();
   await page.screenshot({
@@ -43,7 +41,6 @@ let activeBrowser;
     fullPage: true,
   });
   await page.getByRole("button", { name: /start demonstration/i }).click();
-  await page.getByRole("button", { name: "Confirm and start", exact: true }).click();
   await page.waitForTimeout(3500);
   const frameCount = await page.locator(".capture-meta").innerText();
   await page.getByRole("button", { name: /pause/i, exact: true }).click();
@@ -62,7 +59,6 @@ let activeBrowser;
     .click();
   await page.getByRole("button", { name: /Phone camera/ }).click();
   await page.getByRole("button", { name: /start demonstration/i }).click();
-  await page.getByRole("button", { name: "Confirm and start", exact: true }).click();
   const phoneLink = await page.locator(".phone-stage a").getAttribute("href");
   const phone = await context.newPage();
   await phone.goto(phoneLink);

@@ -1,5 +1,4 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { Box, ScanLine } from "lucide-react";
 import { api } from "./api";
 import type {
   Catalogue,
@@ -9,216 +8,140 @@ import type {
 } from "./components-api";
 const Viewer = lazy(() => import("./ComponentViewer"));
 
-export default function ComponentPanel({
-  scene,
-  sessionId,
-  ready,
-  inspecting,
-  notice,
-  inspect,
-  onChange,
-}: {
-  scene: ComponentScene;
-  sessionId: string | null;
-  ready: boolean;
-  inspecting: boolean;
-  notice: string;
-  inspect: () => void;
-  onChange: (scene: ComponentScene) => void;
-}) {
+function useCatalogue() {
   const [catalogue, setCatalogue] = useState<Catalogue | null>(null);
-  const [selected, setSelected] = useState<string>("");
-  const [preview, setPreview] = useState<PartId>("esp32");
   const [error, setError] = useState("");
-  const [pin, setPin] = useState<string>("");
   useEffect(() => {
-    void api<Catalogue>("/components/catalogue")
+    api<Catalogue>("/components/catalogue")
       .then(setCatalogue)
       .catch((e) => setError(e.message));
   }, []);
-  useEffect(() => {
-    setSelected(scene.components[0]?.id || "");
-  }, [scene.frame_id, sessionId]);
-  const detected = scene.components.find((p) => p.id === selected);
-  const partId = detected?.part_id || preview;
+  return { catalogue, error };
+}
+
+export function ComponentLibrary() {
+  const { catalogue, error } = useCatalogue();
+  const [partId, setPart] = useState<PartId | "">("");
+  const [variantId, setVariant] = useState("");
+  const [pin, setPin] = useState("");
   const part = catalogue?.parts.find((p) => p.id === partId);
-  const variant = part?.variants.find(
-    (v) => v.id === detected?.variant_id && detected.confirmed,
-  );
-  useEffect(() => setPin(""), [selected, scene.revision, preview]);
+  const variant = part?.variants.find((v) => v.id === variantId);
   return (
-    <section className="panel component-panel" aria-label="Component library">
-      <div className="component-heading">
-        <div>
-          <h3>
-            <Box size={18} /> Component library
-          </h3>
-        </div>
-        <button
-          className="button secondary"
-          disabled={!ready || inspecting}
-          onClick={inspect}
+    <section aria-label="Component library">
+      {error && <p role="alert">{error}</p>}
+      <label>
+        Component
+        <select
+          aria-label="Component"
+          value={partId}
+          onChange={(e) => {
+            setPart(e.target.value as PartId);
+            setVariant("");
+            setPin("");
+          }}
         >
-          <ScanLine size={16} />
-          {inspecting ? "Identifying…" : "Identify visible parts"}
-        </button>
-      </div>
-      <p className="fine">
-        Reference models do not verify your physical board or wiring. Confirm
-        the part and board variant before using pin details.
-      </p>
-      {notice && (
-        <p className="component-notice" role="status">
-          {notice}
-        </p>
-      )}
-      {error && (
-        <p role="alert" className="component-notice">
-          {error}
-        </p>
-      )}
-      {catalogue && (
+          <option value="">Select a component</option>
+          {catalogue?.parts
+            .filter((p) => p.id !== "unknown")
+            .map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+        </select>
+      </label>
+      {part && (
         <>
-          {scene.components.length > 0 && (
-            <div
-              className="component-tabs"
-              role="group"
-              aria-label="Recognised components"
-            >
-              {scene.components.map((p) => (
-                <button
-                  key={p.id}
-                  className={detected?.id === p.id ? "selected" : ""}
-                  onClick={() => setSelected(p.id)}
-                >
-                  {catalogue.parts.find((c) => c.id === p.part_id)?.name ||
-                    "Unknown"}{" "}
-                  <span>{p.id}</span>
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="component-catalogue">
-            <p className="fine">
-              Browse references without starting a session.
-              {!scene.components.length &&
-                " Start live coaching to identify your visible parts."}
-            </p>
-            <div
-              className="component-tabs"
-              role="group"
-              aria-label="Browse reference models"
-            >
-              {catalogue.parts
-                .filter((p) => p.id !== "unknown")
-                .map((p) => (
-                  <button
-                    key={p.id}
-                    className={!detected && preview === p.id ? "selected" : ""}
-                    onClick={() => {
-                      setSelected("");
-                      setPreview(p.id);
-                    }}
-                  >
-                    {p.name}
-                  </button>
-                ))}
-            </div>
-          </div>
-          {part && (
-            <>
-              <Suspense
-                fallback={
-                  <div className="component-viewer">
-                    Loading the local 3D viewer…
-                  </div>
-                }
+          <p>{part.description}</p>
+          {part.variants.length > 0 && (
+            <label>
+              Reference board variant
+              <select
+                aria-label="Reference board variant"
+                value={variantId}
+                onChange={(e) => {
+                  setVariant(e.target.value);
+                  setPin("");
+                }}
               >
-                <Viewer part={part} variant={variant} pinId={pin} />
-              </Suspense>
-              <div className="component-details">
-                <strong>{part.name}</strong>
-                <span
-                  className={"badge " + (detected?.confirmed ? "green" : "")}
-                >
-                  {detected
-                    ? detected.confirmed
-                      ? "User confirmed"
-                      : detected.uncertain
-                        ? "Uncertain match"
-                        : "AI suggestion"
-                    : "Catalogue preview"}
-                </span>
-                <p>{detected?.evidence || part.description}</p>
-                <p className="fine">{part.limitations}</p>
-                {detected && (
-                  <p className="fine">
-                    Value: {detected.value_text || "Unknown"}
-                    {detected.value_source
-                      ? ` · ${detected.value_source}`
-                      : ""}{" "}
-                    · Snapshot {scene.frame_id} at{" "}
-                    {((scene.timestamp_ms || 0) / 1000).toFixed(1)}s. Snapshot
-                    pixels are not retained in conversation history.
-                  </p>
-                )}
-                {variant && (
-                  <>
-                    <label>
-                      Highlight a reference pin
-                      <select
-                        aria-label="Highlight a reference pin"
-                        value={pin}
-                        onChange={(e) => setPin(e.target.value)}
-                      >
-                        <option value="">Select a pin</option>
-                        {variant.pins.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <a href={variant.source} target="_blank" rel="noreferrer">
-                      Pin layout source
-                    </a>
-                  </>
-                )}
-                {detected && sessionId && (
-                  <PartReview
-                    key={`${detected.id}-${scene.revision}`}
-                    detected={detected}
-                    catalogue={catalogue}
-                    revision={scene.revision}
-                    sessionId={sessionId}
-                    onChange={onChange}
-                  />
-                )}
-              </div>
-            </>
-          )}
-          {scene.questions.length > 0 && (
-            <div className="component-questions">
-              <strong>Questions from this inspection</strong>
-              <p className="fine">
-                Check these against your saved confirmations.
-              </p>
-              <ul>
-                {scene.questions.map((q, i) => (
-                  <li key={i}>{q}</li>
+                <option value="">Select a reference variant</option>
+                {part.variants.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name}
+                  </option>
                 ))}
-              </ul>
-            </div>
+              </select>
+            </label>
           )}
-          {scene.revision > 0 && (
-            <p className="fine">
-              A new inspection replaces this inventory and requires fresh
-              confirmation. Reference matches do not complete lesson
-              checkpoints.
-            </p>
+          {variant && (
+            <label>
+              Highlight a reference pin
+              <select aria-label="Highlight a reference pin" value={pin} onChange={(e) => setPin(e.target.value)}>
+                <option value="">Select a pin</option>
+                {variant.pins.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <Suspense fallback={<p>Loading model...</p>}>
+            <Viewer part={part} variant={variant} pinId={pin} />
+          </Suspense>
+          {variant && (
+            <a href={variant.source} target="_blank" rel="noreferrer">
+              Pin layout source
+            </a>
           )}
         </>
       )}
+    </section>
+  );
+}
+
+export function InspectionResults({
+  scene,
+  sessionId,
+  onChange,
+}: {
+  scene: ComponentScene;
+  sessionId: string;
+  onChange: (scene: ComponentScene) => void;
+}) {
+  const { catalogue, error } = useCatalogue();
+  return (
+    <section aria-label="Identified parts">
+      {error && <p role="alert">{error}</p>}
+      {scene.components.map((p) => (
+        <details key={p.id}>
+          <summary>
+            {catalogue?.parts.find((c) => c.id === p.part_id)?.name ||
+              p.part_id}{" "}
+            ·{" "}
+            {p.confirmed
+              ? "Confirmed"
+              : p.uncertain
+                ? "Uncertain match"
+                : "AI suggestion"}
+          </summary>
+          <p>{p.evidence}</p>
+          <p>Value: {p.value_text || "Unknown"}</p>
+          {catalogue && (
+            <PartReview
+              key={scene.revision}
+              detected={p}
+              catalogue={catalogue}
+              revision={scene.revision}
+              sessionId={sessionId}
+              onChange={onChange}
+            />
+          )}
+        </details>
+      ))}
+      {scene.questions.map((question, index) => (
+        <p key={index}>{question}</p>
+      ))}
     </section>
   );
 }
