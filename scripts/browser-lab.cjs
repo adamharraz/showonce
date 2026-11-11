@@ -5,12 +5,9 @@ const base = process.env.BASE_URL || "http://127.0.0.1:5173";
 (async () => {
   const browser = await chromium.launch({
     executablePath: process.env.CHROME_PATH,
-    args: [
-      "--no-sandbox",
-      "--use-gl=angle",
-      "--use-angle=swiftshader",
-      "--enable-unsafe-swiftshader",
-    ],
+    args: ["--no-sandbox", ...(process.env.SOFTWARE_GL === "true" ? [
+      "--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader",
+    ] : [])],
   });
   require("node:fs").mkdirSync("artifacts/ui", { recursive: true });
   const context = await browser.newContext({
@@ -44,6 +41,8 @@ const base = process.env.BASE_URL || "http://127.0.0.1:5173";
           }
         : path === "/api/me"
           ? { id: "test", role: "student" }
+          : path === "/api/components/catalogue"
+            ? { version: "1", parts: [] }
           : path === "/api/lessons"
             ? [
                 {
@@ -70,7 +69,10 @@ const base = process.env.BASE_URL || "http://127.0.0.1:5173";
   await page.getByRole("button", { name: "Explore in 3D" }).click();
   await page
     .getByRole("heading", { name: "Electronics lab", exact: true })
-    .waitFor();
+    .waitFor().catch(async error => {
+      console.error(JSON.stringify({url: page.url(), headings: await page.locator('h1').allTextContents(), body: (await page.locator('body').innerText()).slice(0, 1400)}));
+      throw error;
+    });
   const course = page.frameLocator(
     'iframe[title="Arduino interactive course and simulator"]',
   );
@@ -137,17 +139,18 @@ const base = process.env.BASE_URL || "http://127.0.0.1:5173";
     fullPage: true,
   });
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page
-    .getByRole("button", { name: "Circuit basics", exact: true })
-    .click();
-  await page.locator("canvas").waitFor();
-  await page.getByRole("button", { name: "Resistor", exact: true }).click();
-  await page.getByRole("heading", { name: "Resistor", exact: true }).waitFor();
-  for (let i = 0; i < 3; i++)
-    await page.getByRole("button", { name: "Next", exact: true }).click();
-  await page.getByRole("button", { name: "Play blink preview" }).click();
-  await page.getByRole("button", { name: "Stop preview" }).waitFor();
-  await page.getByRole("button", { name: "Reset view" }).click();
+  assert.equal(await page.getByRole("button", { name: "Circuit basics", exact: true }).count(), 0);
+  await page.getByRole("button", { name: "3D Workbench", exact: true }).click();
+  const benchHost = page.locator('iframe[title="Proto Lab 3D Workbench"]');
+  await benchHost.scrollIntoViewIfNeeded();
+  const bench = await (await benchHost.elementHandle()).contentFrame();
+  await bench.waitForFunction(() => window.__protoLab?.S.doc && document.querySelector("#loader").classList.contains("done"));
+  assert.equal(await bench.locator("[data-add]").count(), 73);
+  assert.equal(await bench.evaluate(() => window.__protoLab.S.doc.items.length), 0);
+  await bench.locator('[data-add="esp32"]').click();
+  await page.getByRole("button", { name: "Arduino course", exact: true }).click();
+  await page.getByRole("button", { name: "3D Workbench", exact: true }).click();
+  assert.equal(await bench.evaluate(() => window.__protoLab.S.doc.items.length), 1);
   await page.evaluate(() => {
     document.activeElement?.blur?.();
     window.scrollTo(0, 0);
@@ -174,12 +177,12 @@ const base = process.env.BASE_URL || "http://127.0.0.1:5173";
     path: "artifacts/ui/lab-mobile.png",
     fullPage: true,
   });
-  await page.getByRole("button", { name: "Continue your lesson" }).click();
+  await page.getByRole("button", { name: "LED circuit", exact: true }).click();
   await page
     .getByRole("heading", { name: "LED circuit", exact: true })
     .waitFor();
   await page.goto(`${base}/lab/electronics?lesson=led-test`);
-  await page.getByRole("button", { name: "Back to your lesson" }).waitFor();
+  await page.getByRole("button", { name: "LED circuit", exact: true }).waitFor();
   const fallback = await context.newPage();
   await fallback.addInitScript(() => {
     const original = HTMLCanvasElement.prototype.getContext;
@@ -190,15 +193,12 @@ const base = process.env.BASE_URL || "http://127.0.0.1:5173";
     };
   });
   await fallback.goto(`${base}/lab/electronics`);
-  await fallback
-    .getByRole("button", { name: "Circuit basics", exact: true })
-    .click();
-  await fallback
-    .getByRole("heading", { name: "Use the circuit path below" })
-    .waitFor();
+  await fallback.getByText(/3D workbench needs WebGL/).waitFor();
+  await fallback.getByRole("button", { name: "Open guided view", exact: true }).click();
+  await fallback.locator('iframe[title="Arduino interactive course and simulator"]').waitFor();
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: 16-lesson reference loads; blink run/stop, pinout, reset, opaque-origin isolation, desktop/mobile, basics, lesson return and fallback; no page errors.",
+    "PASS: 16-lesson reference loads; blink run/stop, pinout, reset, opaque-origin isolation, desktop/mobile, 73-entry workbench, retained edits, lesson return and WebGL fallback; no page errors.",
   );
   await browser.close();
 })().catch((e) => {

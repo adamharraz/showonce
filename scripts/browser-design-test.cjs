@@ -160,7 +160,7 @@ let browser;
     true,
   );
   await page
-    .getByRole("checkbox", { name: /Include natural narration })
+    .getByRole("checkbox", { name: /Include natural narration/ })
     .uncheck();
   checks.push("Narration can be disabled.");
   await inspect("capture-setup");

@@ -9,6 +9,7 @@ import { buildItem, pinTop, liftOf, drawScreen, setLedColor } from './models.js'
 import { generate, langsFor, LANGS, sensorVars, ACTIONS, instanceNames } from './codegen.js';
 import { Sim } from './sim.js';
 import { EXAMPLES } from './examples.js';
+import { prepareProject } from './project.js';
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -426,11 +427,21 @@ function autoWireSel() {
 function undo() { if (!undoStack.length) return; redoStack.push(JSON.stringify(S.doc)); S.doc = JSON.parse(undoStack.pop()); S.sel = null; refresh(); }
 function redo() { if (!redoStack.length) return; undoStack.push(JSON.stringify(S.doc)); S.doc = JSON.parse(redoStack.pop()); S.sel = null; refresh(); }
 function loadDoc(doc, msg) {
-  S.doc = { v: 1, items: [], wires: [], rules: [], main: null, lang: null, ...doc };
+  const candidate = prepareProject(doc);
+  const previous = { doc: S.doc, sel: S.sel, pending: S.pending };
+  S.doc = candidate;
+  S.sel = null; S.pending = null;
+  try {
+    refresh(); fitAll(true);
+  } catch (error) {
+    S.doc = previous.doc; S.sel = previous.sel; S.pending = previous.pending;
+    if (S.doc) refresh();
+    throw error;
+  }
   for (const x of [...S.doc.items, ...S.doc.wires, ...(S.doc.rules || [])]) { const m = String(x.uid).match(/_(\d+)$/); if (m) uidN = Math.max(uidN, +m[1] + 1); }
-  S.sel = null; S.pending = null; undoStack.length = 0; redoStack.length = 0;
+  undoStack.length = 0; redoStack.length = 0;
   if (S.running) toggleRun();
-  refresh(); fitAll(true);
+  updateUndo();
   if (msg) toast(msg);
 }
 

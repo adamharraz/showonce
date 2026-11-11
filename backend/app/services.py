@@ -455,11 +455,21 @@ class Service:
                 async with self.ai_lock:
                     await self.reserve_call()
                     draft = await self.ai.finalize(ledger, frames, session['gaps'])
-            validate_draft(draft, ids)
-            await self.store.put('metric', {'id': uid(), 'owner_id': session['owner_id'], 'session_id': session['id'], 'operation': 'finalization', 'model': self.ai.actual_model, 'latency_ms': round((time.monotonic()-started)*1000), 'usage': self.ai.last_usage, 'created_at': now()})
             if session['gaps']:
                 from .models import Question
-                draft.questions.append(Question(text='The capture has gaps. Confirm the missing actions and add any omitted instructions before publication.', required=True))
+                question = Question(text='The capture has gaps. Confirm the missing actions and add any omitted instructions before publication.', required=True)
+                # Keep every model clarification and the mandatory capture warning
+                # inside the same schema used by review and publication.
+                if len(draft.questions) < 15:
+                    draft.questions.append(question)
+                else:
+                    step = next((step for step in draft.steps if len(step.questions) < 8), None)
+                    if step is None:
+                        raise AIError('The draft has too many clarification questions to add the required capture-gap review. Saved evidence is preserved; retry lesson generation.', 'clarification_limit')
+                    step.questions.append(question)
+            draft = LessonDraft.model_validate(draft.model_dump())
+            validate_draft(draft, ids)
+            await self.store.put('metric', {'id': uid(), 'owner_id': session['owner_id'], 'session_id': session['id'], 'operation': 'finalization', 'model': self.ai.actual_model, 'latency_ms': round((time.monotonic()-started)*1000), 'usage': self.ai.last_usage, 'created_at': now()})
             lesson = {'id': session['lesson_id'], 'owner_id': session['owner_id'], 'session_id': session['id'], 'revision': 0, 'latest_version': 0, 'draft': draft.model_dump(), 'created_at': now()}
             await self.store.put('lesson', lesson)
             job['state'] = 'complete'

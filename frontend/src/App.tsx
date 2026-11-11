@@ -768,6 +768,7 @@ function Live({
   const [frameCount, setFrameCount] = useState(0);
   const socket = useRef<WebSocket | null>(null);
   const unmounted = useRef(false);
+  const acquiredMedia = useRef<MediaStream | null>(null);
   const connectRef = useRef<(s: Session) => void>(() => {});
   const finishWaiter = useRef<{
     resolve: () => void;
@@ -800,6 +801,7 @@ function Live({
   captureStopRef.current = capture.stop;
   const connect = useCallback(
     (s: Session) => {
+      if (unmounted.current) return;
       const ws = new WebSocket(wsURL(s.id));
       socket.current = ws;
       ws.onopen = () => {
@@ -889,6 +891,7 @@ function Live({
       unmounted.current = true;
       clearInterval(interval);
       clearInterval(timer);
+      acquiredMedia.current?.getTracks().forEach(track => track.stop());
       fullRecording.current?.stopNow();
       void fullRecording.current?.finish().catch(() => {});
       socket.current?.close();
@@ -903,6 +906,7 @@ function Live({
       job: Job | null;
     }>("/sessions/" + id)
       .then((result) => {
+        if (unmounted.current) return;
         sessionRef.current = result.session;
         setSession(result.session);
         setElapsed(Math.floor(getElapsed() / 1000));
@@ -922,6 +926,7 @@ function Live({
     const timer = setInterval(() => {
       void api<{ session: Session; job: Job | null }>("/sessions/" + session.id)
         .then((r) => {
+          if (unmounted.current) return;
           sessionRef.current = r.session;
           setSession(r.session);
           setElapsed(Math.floor(getElapsed() / 1000));
@@ -961,9 +966,16 @@ function Live({
     setError("");
     setBusy(true);
     let media: MediaStream | null = null;
+    let created: Session | null = null;
+    const cancelStart = async () => {
+      media?.getTracks().forEach(track => track.stop());
+      return created ? api<Session>("/sessions/" + created.id + "/finish", "POST").catch(() => null) : null;
+    };
     try {
       if (source !== "phone")
         media = await acquire(source, microphone && !practice);
+      acquiredMedia.current = media;
+      if (unmounted.current) { await cancelStart(); return; }
       const s = await api<Session>("/sessions", "POST", {
         mode: practice ? "practice" : "teach",
         recording_required: !practice,
@@ -972,23 +984,35 @@ function Live({
           ? { lesson_id: practice.lesson_id, version: practice.version }
           : {}),
       });
+      created = s;
+      if (unmounted.current) { await cancelStart(); return; }
       sessionRef.current = s;
       setSession(s);
       if (!practice && media) {
-        fullRecording.current = await FullRecording.start(s.id, media, getElapsed(), message => {
-          setError(message); socket.current?.close();
+        const recording = await FullRecording.start(s.id, media, getElapsed(), message => {
+          if (!unmounted.current) setError(message);
+          socket.current?.close();
         });
+        if (unmounted.current) {
+          recording.stopNow();
+          void recording.finish().catch(() => {});
+          await cancelStart();
+          return;
+        }
+        fullRecording.current = recording;
         setRecordingStatus("Recording full video and audio; saving automatically");
       }
       connectRef.current(s);
       if (media) capture.setStream(media);
       if (source === "phone") await pair(s);
     } catch (e) {
-      media?.getTracks().forEach((t) => t.stop());
-      if (sessionRef.current) void api("/sessions/" + sessionRef.current.id + "/finish", "POST").then(() => { const current = sessionRef.current; if (current) { const ended = { ...current, state: "finished" as const, finished_at: new Date().toISOString() }; sessionRef.current = ended; setSession(ended); } }).catch(() => {});
-      setError((e as Error).message);
+      const ended = await cancelStart();
+      if (!unmounted.current) {
+        if (ended) { sessionRef.current = ended; setSession(ended); }
+        setError((e as Error).message);
+      }
     } finally {
-      setBusy(false);
+      if (!unmounted.current) setBusy(false);
     }
   }
   async function resume() {
@@ -2353,6 +2377,8 @@ function PhoneCapture({ id }: { id: string }) {
     new URLSearchParams(location.search).get("mic") !== "0",
   );
   const socket = useRef<WebSocket | null>(null);
+  const unmounted = useRef(false);
+  const acquiredMedia = useRef<MediaStream | null>(null);
   const fullRecording = useRef<FullRecording | null>(null);
   const started = useRef(Date.now());
   const offset = useRef(0);
@@ -2369,6 +2395,8 @@ function PhoneCapture({ id }: { id: string }) {
   async function start() {
     try {
       const media = await acquire("camera", mic);
+      acquiredMedia.current = media;
+      if (unmounted.current) { media.getTracks().forEach(track => track.stop()); return; }
       capture.setStream(media);
       const ws = new WebSocket(wsURL(id));
       socket.current = ws;
@@ -2377,13 +2405,20 @@ function PhoneCapture({ id }: { id: string }) {
           JSON.stringify({ type: "authenticate", ticket: ticket.current }),
         );
       ws.onmessage = async (e) => {
+        if (unmounted.current || socket.current !== ws) return;
         const m = JSON.parse(e.data);
         if (m.type === "paired") {
           started.current = Date.now();
           offset.current = m.elapsed_ms;
           setMode(m.mode);
           if (m.recording_required) {
-            try { fullRecording.current = await FullRecording.start(id, media, m.elapsed_ms, message => { setError(message); ws.close(); }, m.capture_token); }
+            try {
+              const recording = await FullRecording.start(id, media, m.elapsed_ms, message => { if (!unmounted.current) setError(message); ws.close(); }, m.capture_token);
+              if (unmounted.current || socket.current !== ws) {
+                recording.stopNow(); void recording.finish().catch(() => {}); return;
+              }
+              fullRecording.current = recording;
+            }
             catch (error) { setError((error as Error).message); ws.close(); return; }
           }
           setPaired(true);
@@ -2412,9 +2447,12 @@ function PhoneCapture({ id }: { id: string }) {
     }
   }
   useEffect(() => {
+    unmounted.current = false;
     const interval = setInterval(() => send({ type: "ping" }), 5000);
     return () => {
+      unmounted.current = true;
       clearInterval(interval);
+      acquiredMedia.current?.getTracks().forEach(track => track.stop());
       fullRecording.current?.stopNow();
       void fullRecording.current?.finish().catch(() => {});
       socket.current?.close();

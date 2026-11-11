@@ -134,6 +134,28 @@ export function mainBoard(A) {
   return it && BOARDS[it.type] ? it : null;
 }
 
+/** Resolve a digital signal without merging the shifter's two voltage domains. */
+function signalPath(A, n, digital) {
+  if (n.gpio.length) return { board: n.gpio[0], net: n };
+  if (!digital || n.src.length || n.gndRef) return {};
+  for (const pin of n.parts) {
+    if (!pin.def.shifter || !['ls', 'hs'].includes(pin.p.t)) continue;
+    const lv = A.net(`${pin.uid}:LV`), hv = A.net(`${pin.uid}:HV`);
+    const refs = [lv, hv];
+    if (refs.some((r) => !r.v || r.multiV || r.gndRef || r.v < pin.def.vmin || r.v > pin.def.vmax) || lv.v >= hv.v) continue;
+    const ground = A.net(`${pin.uid}:GND`);
+    if (!ground.gndRef || ground.src.length) continue;
+    const lowSide = pin.p.t === 'ls';
+    const other = A.net(`${pin.uid}:${lowSide ? 'HV' : 'LV'}${pin.n.slice(2)}`);
+    if (!other?.gpio.length || other.src.length || other.gndRef) continue;
+    const board = other.gpio[0];
+    const gp = board.def.pins.find((p) => p.role === 'gnd');
+    if (!gp || A.netOf.get(`${board.uid}:${gp.n}`) !== ground.id) continue;
+    return { board, net: other, partV: lowSide ? lv.v : hv.v, boardV: lowSide ? hv.v : lv.v, ground: ground.id };
+  }
+  return {};
+}
+
 // ── Electrical rule check ──────────────────────────────────────────────────
 function erc(A) {
   const I = A.issues;
@@ -185,7 +207,7 @@ function erc(A) {
       if (def.vmax && n.v > def.vmax + 0.05) fail('error', `${name(it)} is rated ${def.vmin}–${def.vmax} V but its ${p.n} pin gets ${fmtV(n.v)} — it will be damaged.`, { fix: def.vmax < 4 ? 'Power it from 3V3.' : undefined });
       else if (def.vmin && n.v < def.vmin - 0.05) fail('warn', `${name(it)} needs at least ${def.vmin} V on ${p.n} (gets ${fmtV(n.v)}) — it may not work reliably.`, { fix: 'Power it from 5V.' });
     }
-    if (def.shifter && C.lv && C.hv && C.lv > C.hv) fail('warn', `${name(it)}: LV (${fmtV(C.lv)}) should be the lower voltage.`);
+    if (def.shifter && C.lv && C.hv && C.lv >= C.hv) fail('error', `${name(it)}: LV (${fmtV(C.lv)}) must be lower than HV (${fmtV(C.hv)}).`);
     // ground
     const gp = def.pins.filter((p) => p.t === 'gnd');
     let gNet = null;
@@ -199,7 +221,7 @@ function erc(A) {
       if (!isSignal(t) && t !== 'ain') continue;
       const n = net(p.n);
       if (t === 'ain') continue;
-      const board = n.gpio[0];
+      const path = signalPath(A, n, t !== 'ao'), board = path.board;
       if (!board) {
         // analog via an ADS1115 channel
         const ads = t === 'ao' && n.parts.find((x) => x.p.t === 'ain');
@@ -208,7 +230,7 @@ function erc(A) {
         else if (anyConn) push('info', it.uid, `${name(it)}: ${p.n} is not connected yet.`);
         C.ok = false; continue;
       }
-      if (n.gpio.length > 1 && new Set(n.gpio.map((g) => g.uid)).size > 1) fail('error', `${name(it)}: ${p.n} joins pins of two different boards.`);
+      if (path.net.gpio.length > 1 && new Set(path.net.gpio.map((g) => g.uid)).size > 1) fail('error', `${name(it)}: ${p.n} joins pins of two different boards.`);
       const b = board.it, bd = board.def, caps = board.p.caps || [], L = /^\d+$/.test(label(board.n)) ? `GPIO${label(board.n)}` : label(board.n);
       if (main && b.uid !== main.uid) { push('info', it.uid, `${name(it)} is wired to ${name(b)}, not the main board — no code is generated for it.`); }
       else usesMain = true;
@@ -236,9 +258,13 @@ function erc(A) {
       if (caps.includes('reserved')) push('warn', it.uid, `${L} is reserved for the HAT ID EEPROM.`);
       // voltage levels
       const outV = def.outV === 'vcc' || def.outV === undefined ? C.v : def.outV;
-      if (OUTGOING.has(t) && outV && outV > bd.logic + 0.4) fail('error', `${name(it)} ${p.n} outputs ${fmtV(outV)} into ${L} of ${bd.name}, a ${bd.logic} V pin.`, { fix: 'Add a level shifter or a 1 kΩ/2 kΩ divider.' });
-      if (INCOMING.has(t) && def.inMax && bd.logic > def.inMax) fail('error', `${name(it)} ${p.n} takes ${def.inMax} V max, but ${bd.name} drives ${bd.logic} V.`, { fix: 'Use a level shifter.' });
-      if (INCOMING.has(t) && def.vih && bd.logic < def.vih && C.v > bd.logic) push('warn', it.uid, `${name(it)} on ${fmtV(C.v)} may not see a ${bd.logic} V HIGH reliably.`);
+      const toBoardV = path.boardV ?? outV, toPartV = path.partV ?? bd.logic;
+      if (path.partV && OUTGOING.has(t) && outV && Math.abs(outV - path.partV) > 0.4) fail('error', `${name(it)} ${p.n} outputs ${fmtV(outV)} but its level shifter side is referenced to ${fmtV(path.partV)}.`);
+      if (path.boardV && INCOMING.has(t) && Math.abs(bd.logic - path.boardV) > 0.4) fail('error', `${bd.name} drives ${bd.logic} V but its level shifter side is referenced to ${fmtV(path.boardV)}.`);
+      if (OUTGOING.has(t) && outV && toBoardV > bd.logic + 0.4) fail('error', `${name(it)} ${p.n} outputs ${fmtV(toBoardV)} into ${L} of ${bd.name}, a ${bd.logic} V pin.`, { fix: 'Add a level shifter or a 1 kΩ/2 kΩ divider.' });
+      if (INCOMING.has(t) && def.inMax && toPartV > def.inMax) fail('error', `${name(it)} ${p.n} takes ${def.inMax} V max, but receives ${fmtV(toPartV)}.`, { fix: 'Use a level shifter.' });
+      if (INCOMING.has(t) && def.vih && toPartV < def.vih && C.v > toPartV) push('warn', it.uid, `${name(it)} on ${fmtV(C.v)} may not see a ${toPartV} V HIGH reliably.`);
+      if (path.ground && gNet && path.ground !== gNet) fail('error', `${name(it)} and its level shifter do not share a ground.`);
       if (gNet && main && b.uid === main.uid && mainGnd && gNet !== mainGnd) fail('error', `${name(it)} and ${bd.name} do not share a ground — connect the GNDs together.`);
       // pin shared with another part
       const others = n.parts.filter((x) => x.uid !== it.uid && isSignal(x.p.t) && !(BUS.has(x.p.t) && BUS.has(t)));
@@ -400,6 +426,10 @@ export function autoWire(A, partUid, boardUid) {
   const can33 = (def.vmin ?? 0) <= 3.3 && (def.vmax ?? 99) >= 3.3, can5 = (def.vmin ?? 0) <= 5 && (def.vmax ?? 99) >= 5;
   const vccRole = bd.logic < 4 ? (can33 ? 'p33' : can5 ? 'p5' : null) : (can5 ? 'p5' : can33 ? 'p33' : null);
   for (const p of def.pins) {
+    // Fill empty connections only. Existing nets may reach the controller through
+    // breadboard strips or a shifter, or be manual wiring still in progress.
+    const existing = A.net(`${it.uid}:${p.n}`);
+    if (existing.connected > 1 || A.wires.some((w) => A.netOf.get(w.a) === existing.id)) continue;
     let bp = null; const t = p.t;
     if (t === 'vcc' || t === 'lvref') { bp = vccRole ? pinByRole(t === 'lvref' ? 'p33' : vccRole) : null; if (!bp) notes.push(`${def.name} needs ${def.vmin}–${def.vmax} V, which this board does not provide.`); }
     else if (t === 'hvref') bp = pinByRole('p5');
@@ -421,7 +451,6 @@ export function autoWire(A, partUid, boardUid) {
     else if (t === 'sw') { if (p.n === '1') bp = mark(free((q) => !q.caps.includes('inputOnly') || true, (q) => plain(q) * 2 + (q.caps.includes('adc') ? 0 : 1))); else bp = pinByRole('gnd'); }
     else continue;
     if (!bp) { if (!['vcc', 'lvref', 'hvref'].includes(t)) notes.push(`No free pin for ${p.n}.`); continue; }
-    const existing = A.net(`${it.uid}:${p.n}`);
     if (existing.keys.includes(`${b.uid}:${bp.n}`)) continue;
     wires.push({ a: `${b.uid}:${bp.n}`, b: `${it.uid}:${p.n}`, t });
   }

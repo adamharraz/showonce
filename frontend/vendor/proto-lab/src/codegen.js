@@ -368,14 +368,24 @@ export function generate(A, lang) {
   const ruled = new Set(rules.map((r) => r.dst));
   const ctl = [];
   const cmt = L === 'arduino' ? '//' : '#';
-  for (const r of rules) {
-    const v = vars.find((x) => `${x.uid}.${x.k}` === r.src), d = drivers.get(r.dst);
+  for (const dst of ruled) {
+    const d = drivers.get(dst);
     if (!d.drv.act) continue;
-    const cond = v.bool ? (r.op === 'is' && !+r.val ? (L === 'arduino' ? `!${v.v}` : `not ${v.v}`) : v.v) : `${v.v} ${r.op === '<' ? '<' : '>'} ${+r.val}`;
-    const on = d.drv.act(r.act || 'on', r.arg), off = d.drv.act('off');
-    ctl.push(`${cmt} rule: when ${ascii(v.l)} ${v.bool ? (r.op === 'is' && !+r.val ? 'is off' : 'is on') : `${r.op} ${r.val}`} -> ${d.n} ${r.act}${r.arg ? ` ${r.arg}` : ''}`);
-    if (L === 'arduino') ctl.push(`if (${cond}) { ${on} } else { ${off} }`);
-    else ctl.push(`if ${cond}:`, `    ${on}`, 'else:', `    ${off}`);
+    // Reverse priority gives the last matching rule its action, as in Sim.tick.
+    // Only the final else turns off an output when no condition matched.
+    const branches = [];
+    for (const r of rules.filter((r) => r.dst === dst).reverse()) {
+      const v = vars.find((x) => `${x.uid}.${x.k}` === r.src);
+      const cond = v.bool ? (r.op === 'is' && !+r.val ? (L === 'arduino' ? `!${v.v}` : `not ${v.v}`) : v.v) : `${v.v} ${r.op === '<' ? '<' : '>'} ${+r.val}`;
+      ctl.push(`${cmt} rule: when ${ascii(v.l)} ${v.bool ? (r.op === 'is' && !+r.val ? 'is off' : 'is on') : `${r.op} ${r.val}`} -> ${d.n} ${r.act}${r.arg ? ` ${r.arg}` : ''}`);
+      branches.push({ cond, on: d.drv.act(r.act || 'on', r.arg) });
+    }
+    const off = d.drv.act('off');
+    if (L === 'arduino') ctl.push(branches.map(({ cond, on }) => `if (${cond}) { ${on} }`).join(' else ') + ` else { ${off} }`);
+    else {
+      branches.forEach(({ cond, on }, i) => ctl.push(`${i ? 'elif' : 'if'} ${cond}:`, `    ${on}`));
+      ctl.push('else:', `    ${off}`);
+    }
   }
   // default behaviours for outputs without rules
   for (const d of drivers.values()) {

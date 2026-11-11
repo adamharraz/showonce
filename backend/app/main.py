@@ -185,14 +185,15 @@ def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_pro
 
     @app.post('/api/sessions/{id}/finish', response_model=SessionRecord)
     async def finish_session(id: str, current=Depends(user)):
-        session = await owned('session', id, current)
-        runtime = service.runtimes.get(id)
-        if runtime and not runtime.stopped:
-            await runtime.finish()
-            return runtime.session
-        session['state'] = 'finished'; session['finished_at'] = session.get('finished_at') or now()
-        await store.put('session', session)
-        return session
+        async with service.session_lock:
+            session = await owned('session', id, current)
+            runtime = service.runtimes.get(id)
+            if runtime and not runtime.stopped:
+                await runtime.finish()
+                return runtime.session
+            session['state'] = 'finished'; session['finished_at'] = session.get('finished_at') or now()
+            await store.put('session', session)
+            return session
 
     @app.post('/api/sessions/{id}/step', response_model=SessionRecord)
     async def set_step(id: str, body: SetStep, current=Depends(user)):
@@ -203,15 +204,23 @@ def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_pro
             version = await store.get('version', session['version_id'])
             if body.step_id not in {s['id'] for s in version['draft']['steps']}:
                 raise HTTPException(422, 'Step is not part of this lesson version')
-            session['step_id'] = body.step_id
-            session['step_revision'] = session.get('step_revision', 0) + 1
             runtime = service.runtimes.get(id)
             if runtime:
-                async with runtime.storage_lock:
-                    runtime.session['step_id'] = body.step_id
-                    runtime.session['step_revision'] = session['step_revision']
+                # Frame writes can delay this request while Finish changes the
+                # authoritative runtime. Recheck after waiting and serialize with
+                # every finish path, including WebSocket controls and timeouts.
+                async with runtime.storage_lock, runtime.finish_lock:
+                    session = runtime.session
+                    if runtime.stopped or session['state'] in ('finishing', 'finished'):
+                        raise HTTPException(409, 'Choose a step in an active practice session')
+                    session['step_id'] = body.step_id
+                    session['step_revision'] = session.get('step_revision', 0) + 1
                     await runtime.mark_processed(runtime.frames)
                     runtime.frames.clear(); runtime.audio.clear()
+                    await store.put('session', session)
+                    return session
+            session['step_id'] = body.step_id
+            session['step_revision'] = session.get('step_revision', 0) + 1
             await store.put('session', session)
             return session
 

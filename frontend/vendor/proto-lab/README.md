@@ -1,5 +1,7 @@
 # Proto Lab
 
+Vendored from Akash Talole's [3D Artifacts](https://github.com/akashtalole/3D-Artifacts/tree/3fe4202bdc08efade57dd5f1958e43c33b9dbc72/projects/proto-lab) under the accompanying MIT license. ShowOnce bundles its assets locally in an isolated frame and adds starter layouts, transactional project import, preserved Auto-wire connections, powered level-shifter signal traversal, and consistent firmware rule priority. The notes below describe the upstream workbench.
+
 A 3D electronics prototyping bench in the browser. You place development boards, breadboards and sensor modules, wire them, and Proto Lab:
 
 - checks the circuit like an electrical rules check
