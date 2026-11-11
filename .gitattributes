@@ -1,0 +1,2 @@
+# Preserve the pinned Arduino snapshot response bytes.
+frontend/vendor/learn-arduino/site/** -text

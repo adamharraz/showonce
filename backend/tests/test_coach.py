@@ -26,7 +26,7 @@ class TestBridge:
         self.handle = handle
     async def send(self, kind, value):
         self.sent.append((kind, value))
-        if kind == 'text':
+        if kind in ('text', 'text_with_frame'):
             await self.queue.put(types.LiveServerMessage(server_content=types.LiveServerContent(
                 output_transcription=types.Transcription(text='Test-only live reply.'),
                 model_turn=types.Content(role='model', parts=[types.Part.from_bytes(data=b'\x00\x00'*100, mime_type='audio/pcm;rate=24000')]),
@@ -65,6 +65,46 @@ def image():
     output=io.BytesIO(); Image.new('RGB',(320,240),'blue').save(output,format='JPEG')
     return base64.b64encode(output.getvalue()).decode()
 
+def test_live_lab_suggestions_follow_the_coaching_turn(coach_client, monkeypatch):
+    headers, token = login(coach_client)
+    with coach_client.websocket_connect('/api/coaching/stream', headers={'origin': 'http://localhost:8000'}) as ws:
+        ready = authenticate(ws, token)
+        assert ready['lab_topics'] == []
+        bridge = TestBridge.instances[0]
+        send = bridge.send
+        suggestions = iter([['sensor', 'sensor'], ['unknown_tutorial'], []])
+
+        async def reply_with_suggestions(kind, value):
+            if kind == 'text':
+                await bridge.queue.put(types.LiveServerMessage(tool_call=types.LiveServerToolCall(
+                    function_calls=[types.FunctionCall(id='suggestion', name='suggest_electronics_lab',
+                        args={'topics': next(suggestions)})])))
+            await send(kind, value)
+
+        monkeypatch.setattr(bridge, 'send', reply_with_suggestions)
+        assert 'in that same reply' in bridge.instruction
+        for index, (question, topics) in enumerate((
+            ('How do I use this ultrasonic sensor?', ['sensor']),
+            ('What about an unsupported tutorial?', None),
+            ('How do I format this spreadsheet?', []),
+        )):
+            if index:
+                coach_client.portal.call(asyncio.sleep, 1.05)
+            ws.send_json({'type': 'text', 'text': question})
+            events = until(ws, 'turn_complete')
+            assert [event['topics'] for event in events if event['type'] == 'lab_suggestions'] == (
+                [] if topics is None else [topics]
+            )
+            assert any(event['type'] == 'audio' for event in events)
+            response = [value[0] for kind, value in bridge.sent if kind == 'tool_response'][-1]
+            assert response.response['accepted'] is (topics is not None)
+            assert response.scheduling == types.FunctionResponseScheduling.SILENT
+            saved = coach_client.get('/api/coaching/sessions', headers=headers).json()[0]
+            assert saved['lab_topics'] == ([] if topics == [] else ['sensor'])
+        assert [kind for kind, _ in bridge.sent] == ['text', 'tool_response'] * 3
+        ws.send_json({'type': 'control', 'action': 'finish'})
+        until(ws, 'finished')
+
 def test_live_camera_voice_transcript_pause_and_history(coach_client):
     headers,token=login(coach_client)
     with coach_client.websocket_connect('/api/coaching/stream',headers={'origin':'http://localhost:8000'}) as ws:
@@ -76,7 +116,9 @@ def test_live_camera_voice_transcript_pause_and_history(coach_client):
         messages=until(ws,'turn_complete')
         assert any(m['type']=='audio' and m['sample_rate']==24000 for m in messages)
         assert any(m['type']=='transcript' and m['role']=='assistant' for m in messages)
-        assert {kind for kind,_ in TestBridge.instances[0].sent}=={'frame','audio','text'}
+        assert {kind for kind,_ in TestBridge.instances[0].sent}=={'frame','audio','text_with_frame'}
+        assert TestBridge.instances[0].sent[-1][1] == {
+            'image': TestBridge.instances[0].sent[0][1], 'text': 'What is visible?'}
         ws.send_json({'type':'microphone','enabled':False})
         ws.send_json({'type':'ping'})
         assert ws.receive_json()['type']=='pong'

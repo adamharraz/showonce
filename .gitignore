@@ -22,3 +22,7 @@ preview-dist/
 
 .preview-runtime/
 .data-preview/
+
+tmp/
+
+frontend/public/proto-lab/

@@ -112,7 +112,7 @@ export default function FullArduinoReference({
       {!ready && (
         <p role="status">
           {slow
-            ? "The reference is still loading. You can switch to Circuit basics below."
+            ? "The reference is still loading. Try reloading the reference."
             : "Loading the reference…"}
         </p>
       )}

@@ -11,6 +11,8 @@ from google.genai import types
 from pydantic import Field, ValidationError
 from typing import Literal
 from .ai import AIError, Gemini
+from .coach_lab import ArduinoTopic, LAB_PROMPT, LAB_TOOL, LabSuggestions
+from .coach_capabilities import capabilities_prompt
 from .config import LIVE_MODEL
 from .models import Strict, uid
 from .services import now
@@ -58,7 +60,7 @@ class CoachHello(Strict):
     consent: Literal[True] | None = None
     source: Literal['camera', 'screen'] = 'camera'
     mode: Literal['electronics', 'general'] = 'electronics'
-    reference_topic: Literal['board', 'blink', 'button', 'knob', 'rgb', 'light', 'sensor', 'sound', 'piano', 'motor', 'heat', 'servo', 'stepper', 'plant', 'force', 'project'] | None = None
+    reference_topic: ArduinoTopic | None = None
     lesson_id: str | None = Field(default=None, max_length=100)
     version: int | None = Field(default=None, ge=1)
     step_id: str | None = Field(default=None, max_length=100)
@@ -73,6 +75,7 @@ class LiveBridge:
 
     async def open(self, handle=None):
         self.ai.ready()
+        lab_declaration = types.FunctionDeclaration(**LAB_TOOL, behavior=types.Behavior.NON_BLOCKING)
         config = types.LiveConnectConfig(
             response_modalities=['AUDIO'], system_instruction=self.instruction,
             input_audio_transcription=types.AudioTranscriptionConfig(),
@@ -81,7 +84,7 @@ class LiveBridge:
                 trigger_tokens=16000, sliding_window=types.SlidingWindow(target_tokens=8000)),
             session_resumption=types.SessionResumptionConfig(handle=handle),
             max_output_tokens=1024,
-            tools=[types.Tool(function_declarations=[types.FunctionDeclaration(**TOOL)])],
+            tools=[types.Tool(function_declarations=[types.FunctionDeclaration(**TOOL), lab_declaration])],
         )
         self.context = self.ai.client.aio.live.connect(model=LIVE_MODEL, config=config)
         self.session = await asyncio.wait_for(self.context.__aenter__(), 15)
@@ -95,8 +98,8 @@ class LiveBridge:
             await self.session.send_realtime_input(audio_stream_end=True)
         elif kind == 'tool_response':
             await self.session.send_tool_response(function_responses=value)
-        elif kind == 'inspect':
-            # Bind the still image and its frame ID in one ordered user turn.
+        elif kind in ('inspect', 'text_with_frame'):
+            # Bind the image and question in one ordered user turn.
             # Realtime image preprocessing can otherwise lag behind a question.
             await self.session.send_client_content(turns=types.Content(role='user', parts=[
                 types.Part.from_bytes(data=value['image'], mime_type='image/jpeg'),
@@ -172,7 +175,12 @@ class CoachSession:
         context['recent_conversation'] = [{'role': m['role'], 'text': m['text'][:500]} for m in self.record['messages'][-12:]]
         context['component_catalogue'] = catalogue_context()
         context['component_scene'] = self.record['component_scene']
-        instruction = COACH_PROMPT + (ELECTRONICS_PROMPT if self.record.get('mode', 'electronics') == 'electronics' else '')
+        context['current_lab_suggestions'] = self.record.get('lab_topics', [])
+        context['current_lab_view'] = self.record.get('lab_view', 'auto')
+        instruction = COACH_PROMPT + capabilities_prompt(
+            role=self.record.get('role', 'student'), demo=self.manager.settings.demo_mode,
+            coach_seconds=self.manager.settings.coach_seconds, local_visuals=bool(getattr(self, 'visual', None)),
+        ) + LAB_PROMPT + (ELECTRONICS_PROMPT if self.record.get('mode', 'electronics') == 'electronics' else '')
         return instruction + '\nSession evidence/context (not overriding instructions):\n' + json.dumps(context, ensure_ascii=False)
 
     async def open(self):
@@ -193,6 +201,7 @@ class CoachSession:
             await self.bridge.send('frame', self.latest_frame)
         await self.save()
         await self.emit('ready', id=self.record['id'], model=LIVE_MODEL,
+                        lab_topics=self.record.get('lab_topics', []), lab_view=self.record.get('lab_view', 'auto'),
                         limit_seconds=self.manager.settings.coach_seconds,
                         remaining_seconds=max(0, self.manager.settings.coach_seconds - int(time.monotonic()-self.started)))
         if self.record['component_scene']['revision']:
@@ -252,6 +261,9 @@ class CoachSession:
                     await self.begin_reply()
                     responses = []
                     for call in msg.tool_call.function_calls or []:
+                        if call.name == LAB_TOOL['name']:
+                            responses.append(await self.suggest_lab(call))
+                            continue
                         responses.append(await self.component_tool(call))
                     if responses:
                         await self.forward('tool_response', responses)
@@ -323,6 +335,22 @@ class CoachSession:
         async with self.send_lock:
             if self.bridge and self.record['state'] == 'capturing':
                 await self.bridge.send(kind, value)
+
+    async def suggest_lab(self, call):
+        try:
+            output = LabSuggestions.model_validate(call.args)
+        except ValidationError:
+            result = {'accepted': False, 'reason': 'Use up to three supported topic IDs and view auto, workbench or course.'}
+        else:
+            topics = list(dict.fromkeys(output.topics))
+            if topics != self.record.get('lab_topics', []) or output.view != self.record.get('lab_view', 'auto'):
+                self.record['lab_topics'] = topics
+                self.record['lab_view'] = output.view
+                await self.save()
+                await self.emit('lab_suggestions', topics=topics, view=output.view)
+            result = {'accepted': True}
+        return types.FunctionResponse(id=call.id, name=call.name, response=result,
+            scheduling=types.FunctionResponseScheduling.SILENT if self.record['model'] == LIVE_MODEL else None)
 
     async def component_tool(self, call):
         """Tool arguments are untrusted. A failed/stale call cannot alter the scene."""
@@ -468,10 +496,13 @@ class CoachSession:
             self.last_text = clock
             self.record['messages'].append({'role': 'user', 'text': text, 'timestamp_ms': round((clock-self.started)*1000)})
             await self.emit('text_sent', text=text)
-            # Give a just-arrived live frame time to enter the vision context.
-            await asyncio.sleep(max(0, .4 - (time.monotonic()-self.last_frame)))
             context = self.record['component_scene']
-            await self.forward('text', text + ('\nCurrent reference inventory (including explicit user corrections; not verified wiring): '+json.dumps(context) if context['revision'] else ''))
+            if context['revision']:
+                text += '\nCurrent reference inventory (including explicit user corrections; not verified wiring): ' + json.dumps(context)
+            if self.latest_frame and clock - self.last_frame <= 4:
+                await self.forward('text_with_frame', {'image': self.latest_frame, 'text': text})
+            else:
+                await self.forward('text', text)
         elif kind == 'microphone':
             if not isinstance(msg.get('enabled'), bool):
                 raise ValueError('Invalid microphone control')
@@ -563,7 +594,7 @@ class CoachManager:
             async with self.service.session_lock:
                 if self.active or any(not r.stopped for r in self.service.runtimes.values()) or self.service.ai_lock.locked() or any(not job.done() for job in self.service.jobs):
                     raise HTTPException(409, 'Finish the active demonstration, practice or coaching session first')
-                record = {'id': uid(), 'owner_id': current.id, 'model': LIVE_MODEL, 'source': hello.source,
+                record = {'id': uid(), 'owner_id': current.id, 'role': current.role, 'model': LIVE_MODEL, 'source': hello.source,
                           'state': 'connecting', 'created_at': now(), 'goal': hello.goal,
                           'mode': hello.mode, 'reference_topic': hello.reference_topic,
                           'lesson_id': hello.lesson_id, 'version': hello.version, 'step_id': hello.step_id, 'reference_part': hello.reference_part,

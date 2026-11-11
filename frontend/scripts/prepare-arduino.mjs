@@ -46,11 +46,19 @@ for (const file of manifest.files) {
   if (path.isAbsolute(file.path) || file.path.split("/").includes(".."))
     throw Error("Invalid snapshot path");
   let bytes = await readFile(path.join(source, "site", file.path));
+  // Git for Windows may expand LF to CRLF before .gitattributes is available
+  // in an existing checkout. Accept only that reversible transformation, then
+  // restore the manifest's original bytes before preparing the reference.
+  const normalizedTextBytes = /\.(html|css|js|txt|xml|json|svg|webmanifest)$/.test(file.path)
+    ? Buffer.from(bytes.toString("utf8").replaceAll("\r\n", "\n"))
+    : bytes;
   if (
-    bytes.length !== file.bytes ||
-    createHash("sha256").update(bytes).digest("hex") !== file.sha256
+    normalizedTextBytes.length !== file.bytes ||
+    createHash("sha256").update(normalizedTextBytes).digest("hex") !==
+      file.sha256
   )
     throw Error(`Snapshot checksum failed: ${file.path}`);
+  bytes = normalizedTextBytes;
   if (/\.(html|css|js)$/.test(file.path)) {
     let text = bytes.toString("utf8");
     if (file.path.endsWith(".html")) {

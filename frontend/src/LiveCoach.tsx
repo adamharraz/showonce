@@ -1,4 +1,4 @@
-import LabSuggestions from "./LabSuggestions";
+import LabSuggestions, { type LabView } from "./LabSuggestions";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowUp,
@@ -17,8 +17,6 @@ import {
 } from "lucide-react";
 import { api, getToken, type Config, type Version } from "./api";
 import { CoachSpeaker, useCoachMedia } from "./coach-media";
-import { InspectionResults } from "./ComponentPanel";
-import { emptyScene, type ComponentScene } from "./components-api";
 import { validTopic } from "./arduino-reference";
 
 type State =
@@ -71,18 +69,15 @@ export default function LiveCoach({
     )));
   const [stepIndex, setStepIndex] = useState(0);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [componentScene, setComponentScene] =
-    useState<ComponentScene>(emptyScene);
-  const initialInspection = useRef(false);
-  const [inspecting, setInspecting] = useState(false);
-  const [componentNotice, setComponentNotice] = useState("");
+  const [labTopics, setLabTopics] = useState<string[]>([]);
+  const [labView, setLabView] = useState<LabView>("auto");
   const [history, setHistory] = useState<
     {
       id: string;
       created_at: string;
       goal: string;
       messages: Omit<Message, "partial">[];
-      component_scene?: ComponentScene;
+      lab_topics?: string[];
     }[]
   >([]);
   const socket = useRef<WebSocket | null>(null);
@@ -109,7 +104,7 @@ export default function LiveCoach({
   const media = useCoachMedia(
     send,
     state === "capturing",
-    mic && !inspecting,
+    mic,
     () => finishRef.current(),
     (message) => {
       setError(message);
@@ -128,7 +123,6 @@ export default function LiveCoach({
     mediaRef.current.stop();
     speaker.current?.interrupt();
     setState("finished");
-    setInspecting(false);
     setMessages((old) => old.map((m) => ({ ...m, partial: false })));
   };
   finishRef.current = finish;
@@ -181,17 +175,6 @@ export default function LiveCoach({
     });
   }
 
-  useEffect(() => {
-    if (!inspecting) return;
-    const timeout = setTimeout(() => {
-      setInspecting(false);
-      setComponentNotice(
-        "The inspection did not finish within a minute. Try a clearer view when the assistant is ready.",
-      );
-    }, 60000);
-    return () => clearTimeout(timeout);
-  }, [inspecting]);
-
   async function start() {
     if (state === "connecting") return;
     setError("");
@@ -199,10 +182,8 @@ export default function LiveCoach({
     setState("connecting");
     setMessages([]);
     setSessionId(null);
-    setComponentScene(emptyScene());
-    setComponentNotice("");
-    setInspecting(false);
-    initialInspection.current = false;
+    setLabTopics([]);
+    setLabView("auto");
     setFrames(0);
     setTurns(0);
     setStepIndex(Math.max(0, lesson?.draft.steps.findIndex(s => s.id === linkedStep) ?? 0));
@@ -283,6 +264,8 @@ export default function LiveCoach({
         switch (message.type) {
           case "ready":
             setSessionId(message.id);
+            setLabTopics(message.lab_topics ?? []);
+            setLabView(message.lab_view ?? "auto");
             started.current =
               Date.now() -
               (message.limit_seconds - message.remaining_seconds) * 1000;
@@ -290,7 +273,6 @@ export default function LiveCoach({
             setNotice("Connected. Show your workspace and ask a question.");
             break;
           case "status":
-            setInspecting(false);
             setState(
               message.state === "connecting" && started.current
                 ? "reconnecting"
@@ -324,28 +306,13 @@ export default function LiveCoach({
             break;
           case "turn_complete":
             setTurns(message.turns);
-            setInspecting(false);
             break;
           case "frame_seen":
             setFrames((old) => old + 1);
             break;
-          case "component_inspecting":
-            setInspecting(true);
-            setComponentNotice(
-              "Inspecting one camera snapshot. Microphone sharing resumes when the reply finishes.",
-            );
-            break;
-          case "component_scene":
-            setComponentScene(message.scene);
-            setComponentNotice(
-              message.scene.components.length
-                ? "Review identified parts"
-                : "No supported components were identified. Try a closer view.",
-            );
-            break;
-          case "component_notice":
-            setInspecting(false);
-            setComponentNotice(message.message);
+          case "lab_suggestions":
+            setLabTopics(message.topics);
+            setLabView(message.view ?? "auto");
             break;
           case "notice":
             setNotice(message.message);
@@ -376,7 +343,6 @@ export default function LiveCoach({
         if (heartbeat.current) clearInterval(heartbeat.current);
         mediaRef.current.stop();
         speaker.current?.interrupt();
-        setInspecting(false);
         setState((old) =>
           old === "error" || old === "finished" ? old : "finished",
         );
@@ -404,13 +370,6 @@ export default function LiveCoach({
     "connecting",
   ].includes(state);
   const ready = state === "capturing";
-  useEffect(() => {
-    if (ready && source === "camera" && frames >= 3 && !initialInspection.current && !inspecting) {
-      initialInspection.current = true;
-      setInspecting(true);
-      send({type: "inspect_components"});
-    }
-  }, [ready, source, frames, inspecting]);
   const step = lesson?.draft.steps[stepIndex];
   return (
     <>
@@ -484,21 +443,9 @@ export default function LiveCoach({
               <span>
                 {frames} frames shared · {turns} replies
               </span>
-              {ready && source === "camera" && frames > 0 && (
-                <button className="text-button" disabled={inspecting} onClick={() => {
-                  initialInspection.current = true;
-                  setInspecting(true);
-                  speaker.current?.interrupt();
-                  media.snapshot();
-                  send({ type: "inspect_components" });
-                }}>{inspecting ? "Identifying…" : "Identify visible parts"}</button>
-              )}
             </div>
           </div>
-          {sessionId && componentScene.components.length > 0 && <LabSuggestions scene={componentScene} />}
-          {componentNotice && <p className="fine" role="status">{componentNotice}</p>}
-          {sessionId && componentScene.components.length > 0 &&
-            <InspectionResults scene={componentScene} sessionId={sessionId} onChange={setComponentScene}/>}
+          {sessionId && <LabSuggestions key={sessionId} topics={labTopics} view={labView} />}
           {!running ? (
             <section className="panel coach-setup">
               <h2>Start a session</h2>
@@ -661,8 +608,7 @@ export default function LiveCoach({
                   className="text-button"
                   onClick={() => {
                     setSessionId(record.id);
-                    setComponentScene(record.component_scene || emptyScene());
-                    setComponentNotice("");
+                    setLabTopics(record.lab_topics ?? []);
                     setMessages(
                       record.messages.map((message) => ({
                         ...message,

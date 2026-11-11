@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Proto Lab</title>
+  <meta name="description" content="3D electronics prototyping: place Arduino, ESP32 and Raspberry Pi boards, breadboards and 50+ sensors and modules, wire them, check the circuit, simulate it and export firmware." />
+  <meta name="theme-color" content="#0f1512" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='6' y='14' width='52' height='36' rx='4' fill='%230a6f8f'/%3E%3Crect x='22' y='24' width='20' height='16' rx='2' fill='%23111'/%3E%3Cg fill='%23ffd23f'%3E%3Crect x='12' y='18' width='4' height='4'/%3E%3Crect x='20' y='18' width='4' height='4'/%3E%3Crect x='28' y='18' width='4' height='4'/%3E%3Crect x='36' y='18' width='4' height='4'/%3E%3Crect x='44' y='18' width='4' height='4'/%3E%3C/g%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="top">
+      <div class="brand"><svg viewBox="0 0 40 40" aria-hidden="true"><rect x="3" y="9" width="34" height="23" rx="3" fill="#0a6f8f"/><rect x="14" y="15" width="12" height="11" rx="1.5" fill="#111"/><g fill="#ffd23f"><rect x="7" y="11" width="2.6" height="2.6"/><rect x="12" y="11" width="2.6" height="2.6"/><rect x="17" y="11" width="2.6" height="2.6"/><rect x="22" y="11" width="2.6" height="2.6"/><rect x="27" y="11" width="2.6" height="2.6"/><rect x="32" y="11" width="2.6" height="2.6"/></g></svg><span>Proto <b>Lab</b></span></div>
+      <select id="example" aria-label="Examples">
+        <option value="">Examples…</option>
+      </select>
+      <div class="seg tools" role="toolbar" aria-label="Tool">
+        <button data-mode="move" class="active" title="Select and move parts (V)"><svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 2-3 6z"/></svg><span>Move</span></button>
+        <button data-mode="wire" title="Draw wires between pins (W)"><svg viewBox="0 0 24 24"><path d="M4 18c4 0 4-12 8-12s4 12 8 12"/><circle cx="4" cy="18" r="2"/><circle cx="20" cy="18" r="2"/></svg><span>Wire</span></button>
+      </div>
+      <div class="seg">
+        <button id="undo" title="Undo (Ctrl+Z)"><svg viewBox="0 0 24 24"><path d="M9 7H4v5M4 12a8 8 0 1 1 3 6"/></svg></button>
+        <button id="redo" title="Redo (Ctrl+Y)"><svg viewBox="0 0 24 24"><path d="M15 7h5v5M20 12a8 8 0 1 0-3 6"/></svg></button>
+      </div>
+      <div class="seg views">
+        <button data-view="persp" class="active" title="3D view">3D</button><button data-view="top" title="Top view">Top</button><button id="fit" title="Fit all (F)"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
+      </div>
+      <div class="spacer"></div>
+      <div class="seg">
+        <button id="new" title="New empty project"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v4h4"/></svg><span>New</span></button>
+        <button id="open" title="Open project (.json)"><svg viewBox="0 0 24 24"><path d="M3 7h6l2 2h10v10H3z"/></svg><span>Open</span></button>
+        <button id="save" title="Save project (.json)"><svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6"/></svg><span>Save</span></button>
+      </div>
+      <button id="run" class="run" title="Run / stop the simulation (Space)"><svg viewBox="0 0 24 24"><path id="run-ico" d="M8 5v14l11-7z"/></svg><span id="run-label">Simulate</span></button>
+      <input type="file" id="file" accept=".json,application/json" hidden />
+    </header>
+
+    <aside class="left" id="left">
+      <div class="search"><input id="q" type="search" placeholder="Search 50+ boards, sensors, modules…" aria-label="Search parts" /></div>
+      <div id="lib"></div>
+    </aside>
+
+    <main class="view" id="view">
+      <canvas id="scene"></canvas>
+      <div class="hint" id="hint"></div>
+      <div class="status" id="status"></div>
+      <div class="tip" id="tip" hidden></div>
+      <div class="serial" id="serial" hidden><div class="shead"><span>Serial monitor <small class="mono">115200 baud</small></span><button id="serial-clear" title="Clear">Clear</button></div><pre id="serial-out" class="mono"></pre></div>
+      <div class="dock">
+        <button id="t-serial" title="Serial monitor"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM7 9l3 3-3 3M12 15h5"/></svg><span>Serial</span></button>
+        <button id="t-sound" title="Buzzer sound in the simulation"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9zM16 9a4 4 0 0 1 0 6"/></svg><span>Sound off</span></button>
+        <button id="t-labels" class="active" title="Pin labels on hover"><svg viewBox="0 0 24 24"><path d="M4 12l8-8h8v8l-8 8zM15 9h.01"/></svg><span>Pin info</span></button>
+      </div>
+    </main>
+
+    <aside class="right" id="right">
+      <nav class="tabs" role="tablist">
+        <button data-tab="inspect" class="active" role="tab">Inspect</button>
+        <button data-tab="check" role="tab">Check <i id="badge"></i></button>
+        <button data-tab="code" role="tab">Code</button>
+        <button data-tab="sim" role="tab">Simulate</button>
+      </nav>
+      <div class="panel" id="panel"></div>
+    </aside>
+    <div class="toast" id="toast" role="status"></div>
+    <div id="loader" class="loader"><div class="ring"></div><div>Warming up the soldering iron…</div></div>
+  </div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

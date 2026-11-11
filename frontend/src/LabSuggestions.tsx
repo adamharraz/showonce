@@ -1,56 +1,41 @@
 import { useEffect, useRef, useState } from "react";
-import ElectronicsLab, { type LabTutorial } from "./ElectronicsLab";
-import type { ComponentScene, PartId } from "./components-api";
+import ElectronicsLab from "./ElectronicsLab";
+import ProtoWorkbench from "./ProtoWorkbench";
+import { labRecommendations, type LabRecommendation, type LabView } from "./lab-recommendations";
+export type { LabView } from "./lab-recommendations";
 
-const blink: LabTutorial = { title: "Blink an LED", topic: "blink" };
-const tutorials: Partial<Record<PartId, LabTutorial>> = {
-  esp32: { title: "Explore the development board", part: "board", stage: 0 },
-  resistor: {
-    title: "Follow the current through a resistor",
-    part: "resistor",
-    stage: 1,
-  },
-  led: blink,
-  breadboard: blink,
-  wire: { title: "Trace the return path", part: "led", stage: 2 },
-};
-
-export default function LabSuggestions({ scene }: { scene: ComponentScene }) {
-  const [active, setActive] = useState<LabTutorial | null>(null);
+export default function LabSuggestions({ topics, view = "auto" }: { topics: string[]; view?: LabView }) {
+  const [active, setActive] = useState<LabRecommendation | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
-  const matches = new Map<LabTutorial, Set<string>>();
-  for (const part of scene.components) {
-    const tutorial = tutorials[part.part_id];
-    if (!tutorial) continue;
-    const parts = matches.get(tutorial) ?? new Set<string>();
-    const name =
-      part.part_id === "esp32"
-        ? "ESP32"
-        : part.part_id === "led"
-          ? "LED"
-          : part.part_id;
-    parts.add(part.uncertain && !part.confirmed ? `Possible ${name}` : name);
-    matches.set(tutorial, parts);
-  }
+  const matches = labRecommendations(topics, view);
   useEffect(() => {
-    if (active) dialog.current?.showModal();
+    if (active && !dialog.current?.open) dialog.current?.showModal();
   }, [active]);
 
-  if (!matches.size) return null;
+  if (!matches.length && !active) return null;
   return (
     <section
       className="lab-suggestions"
       aria-label="Suggested Electronics Lab tutorials"
     >
-      <h3>Try in Electronics Lab</h3>
-      {[...matches].map(([tutorial, parts]) => (
-        <button
-          key={tutorial.title}
-          className="text-button"
-          onClick={() => setActive(tutorial)}
-        >
-          {tutorial.title} <small>{[...parts].join(", ")}</small>
-        </button>
+      {matches.length > 0 && <h3>Try in Electronics Lab</h3>}
+      {matches.map((match) => (
+        <div className="lab-suggestion-actions" key={match.tutorial.title}>
+          <button className="text-button" onClick={() => setActive(match)}>
+            {view === "auto" || match.tutorial.title === "3D Workbench" || match.tutorial.title === "Arduino Course"
+              ? match.tutorial.title
+              : `${match.view === "workbench" ? "3D Workbench" : "Arduino Course"} · ${match.tutorial.title}`}
+          </button>
+          {match.offerWorkbench && (
+            <button
+              className="text-button"
+              aria-label={`Build in 3D — ${match.tutorial.title}`}
+              onClick={() => setActive({ ...match, view: "workbench" })}
+            >
+              Build in 3D
+            </button>
+          )}
+        </div>
       ))}
       <dialog
         className="lab-tutorial"
@@ -61,7 +46,9 @@ export default function LabSuggestions({ scene }: { scene: ComponentScene }) {
         {active && (
           <>
             <header>
-              <h2 id="lab-tutorial-title">{active.title}</h2>
+              <h2 id="lab-tutorial-title">
+                {active.view === "workbench" && active.tutorial.title !== "3D Workbench" ? "Build in 3D · " : ""}{active.tutorial.title}
+              </h2>
               <button
                 className="button secondary"
                 onClick={() => dialog.current?.close()}
@@ -69,10 +56,14 @@ export default function LabSuggestions({ scene }: { scene: ComponentScene }) {
                 Back to Live Help
               </button>
             </header>
-            <ElectronicsLab
-              tutorial={active}
-              navigate={() => dialog.current?.close()}
-            />
+            {active.view === "workbench" ? (
+              <ProtoWorkbench
+                starter={active.starter}
+                onGuided={() => setActive({ ...active, view: "course" })}
+              />
+            ) : (
+              <ElectronicsLab tutorial={active.tutorial} navigate={() => dialog.current?.close()} />
+            )}
           </>
         )}
       </dialog>

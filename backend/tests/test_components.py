@@ -152,7 +152,8 @@ def test_pause_clears_pending_inspection_and_resume_restores_normal_guidance(com
         ws.send_json({'type':'control','action':'finish'}); until(ws,'finished')
 
 @pytest.mark.asyncio
-async def test_snapshot_and_request_use_one_ordered_sdk_turn():
+@pytest.mark.parametrize('kind', ['inspect', 'text_with_frame'])
+async def test_image_and_request_use_one_ordered_sdk_turn(kind):
     class Session:
         async def send_client_content(self,*,turns,turn_complete):
             assert turns.role=='user' and turn_complete
@@ -160,4 +161,4 @@ async def test_snapshot_and_request_use_one_ordered_sdk_turn():
             assert turns.parts[0].inline_data.mime_type=='image/jpeg'
             assert turns.parts[1].text=='Inspect frame-5'
     bridge=LiveBridge(FakeAI(),'Generic instructions'); bridge.session=Session()
-    await bridge.send('inspect',{'image':b'synthetic-jpeg','text':'Inspect frame-5'})
+    await bridge.send(kind,{'image':b'synthetic-jpeg','text':'Inspect frame-5'})

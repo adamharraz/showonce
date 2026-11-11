@@ -8,8 +8,8 @@
     "build": "tsc -b && vite build",
     "test": "vitest run",
     "types": "openapi-typescript ../backend/openapi.json -o src/generated/api.ts",
-    "prebuild": "node scripts/prepare-arduino.mjs",
-    "predev": "node scripts/prepare-arduino.mjs"
+    "prebuild": "node scripts/prepare-arduino.mjs && node scripts/prepare-proto-lab.mjs",
+    "predev": "node scripts/prepare-arduino.mjs && node scripts/prepare-proto-lab.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.117.3",
@@ -17,7 +17,8 @@
     "qrcode": "1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "three": "0.186.1"
+    "three": "0.186.1",
+    "three-proto-lab": "npm:three@0.170.0"
   },
   "devDependencies": {
     "@types/node": "24.19.1",

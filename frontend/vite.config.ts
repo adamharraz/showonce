@@ -7,19 +7,23 @@ export default defineConfig({
   plugins: [
     react(),
     {
-      name: "isolated-arduino-reference",
+      name: "isolated-lab-pages",
       configureServer(server) {
         server.middlewares.use((req, res, next) => {
-          if (req.url?.startsWith("/arduino-reference/")) {
-            if (req.url.endsWith("/")) req.url += "index.html";
+          const url = new URL(req.url ?? "/", "http://localhost");
+          const workbench = url.pathname.startsWith("/proto-lab/");
+          if (workbench || url.pathname.startsWith("/arduino-reference/")) {
+            if (url.pathname.endsWith("/")) {
+              url.pathname += "index.html";
+              req.url = url.pathname + url.search;
+            }
             res.setHeader("Access-Control-Allow-Origin", "*");
             res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
             res.setHeader("Referrer-Policy", "no-referrer");
             if (
-              req.url.split("?")[0].endsWith("/") ||
-              req.url.includes(".html")
+              url.pathname.endsWith(".html")
             ) {
-              res.setHeader("Content-Security-Policy", referencePolicy);
+              res.setHeader("Content-Security-Policy", referencePolicy + (workbench ? " allow-downloads" : ""));
               res.setHeader(
                 "Permissions-Policy",
                 "camera=(), microphone=(), geolocation=()",

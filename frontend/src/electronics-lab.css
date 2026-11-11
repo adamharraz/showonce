@@ -289,3 +289,17 @@
 .lab-tutorial header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem; margin-bottom: .75rem; }
 .lab-tutorial header h2 { margin: 0; }
 .lab-tutorial .arduino-reference iframe { height: 64dvh; min-height: 380px; }
+
+.proto-workbench iframe {
+  display: block;
+  width: 100%;
+  height: 76dvh;
+  min-height: 480px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.proto-workbench iframe[hidden] { display: none; }
+.proto-workbench-fallback { margin-block: 12px; }
+.proto-workbench-fallback button { margin-inline-end: 8px; }
+.lab-suggestion-actions { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.lab-tutorial .proto-workbench iframe { height: 68dvh; }

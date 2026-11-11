@@ -530,6 +530,8 @@ def create_app(settings=None, ai=None, coach_bridge_factory=LiveBridge, twin_pro
     dist = Path(__file__).resolve().parents[2] / 'frontend' / 'dist'
     if (dist / 'arduino-reference').exists():
         app.mount('/arduino-reference', ReferenceFiles(directory=dist / 'arduino-reference', html=True, permitted_origin=settings.origin), name='arduino-reference')
+    if (dist / 'proto-lab').exists():
+        app.mount('/proto-lab', ReferenceFiles(directory=dist / 'proto-lab', html=True, permitted_origin=settings.origin, allow_downloads=True), name='proto-lab')
 
     if (dist / 'assets').exists():
         app.mount('/assets', StaticFiles(directory=dist / 'assets'), name='assets')
